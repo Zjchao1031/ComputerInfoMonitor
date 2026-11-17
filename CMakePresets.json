@@ -1,0 +1,75 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-debug",
+      "displayName": "Windows Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_PREFIX_PATH": "$env{QT_HOST_PREFIX}"
+      }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_PREFIX_PATH": "$env{QT_HOST_PREFIX}"
+      }
+    },
+    {
+      "name": "board-debug",
+      "displayName": "i.MX6ULL Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/board/debug",
+      "toolchainFile": "${sourceDir}/linux-arm-imx6ull.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_PREFIX_PATH": "$env{QT_ARM_PREFIX}"
+      }
+    },
+    {
+      "name": "board-release",
+      "displayName": "i.MX6ULL Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/board/release",
+      "toolchainFile": "${sourceDir}/linux-arm-imx6ull.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_PREFIX_PATH": "$env{QT_ARM_PREFIX}"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug"
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release"
+    },
+    {
+      "name": "board-debug",
+      "configurePreset": "board-debug"
+    },
+    {
+      "name": "board-release",
+      "configurePreset": "board-release"
+    }
+  ]
+}
+
