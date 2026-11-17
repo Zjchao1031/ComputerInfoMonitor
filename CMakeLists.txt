@@ -79,16 +79,13 @@ install(TARGETS computer-info-monitor
     RUNTIME DESTINATION bin
 )
 
-if(WIN32)
-    add_custom_command(TARGET computer-info-monitor POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:computer-info-monitor>/config"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/config/monitor.ini"
-            "$<TARGET_FILE_DIR:computer-info-monitor>/config/monitor.ini"
-    )
-else()
-    install(FILES config/monitor.ini
-        DESTINATION "/etc/computer-info-monitor"
-    )
-endif()
+add_custom_command(TARGET computer-info-monitor POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/config/monitor.ini"
+        "$<TARGET_FILE_DIR:computer-info-monitor>/monitor.ini"
+)
+
+install(FILES config/monitor.ini
+    DESTINATION bin
+)
 

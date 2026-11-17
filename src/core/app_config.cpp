@@ -56,11 +56,7 @@ QString quotedValue(const QString& value)
 
 QString AppConfig::defaultFilePath()
 {
-#ifdef Q_OS_WIN
-    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("config/monitor.ini"));
-#else
-    return QStringLiteral("/etc/computer-info-monitor/monitor.ini");
-#endif
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("monitor.ini"));
 }
 
 std::optional<AppConfig> AppConfig::loadFromFile(const QString& filePath, QString& errorMessage)
