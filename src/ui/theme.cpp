@@ -21,6 +21,10 @@ QWidget#centralWidget {
 QWidget {
     color: @textPrimary;
 }
+QStackedWidget#pageStack,
+QWidget#page {
+    background-color: transparent;
+}
 QWidget#statusHeader {
     background-color: transparent;
 }
@@ -99,6 +103,60 @@ QLabel#connectionText {
 QLabel#lastUpdated {
     color: @textSecondary;
     font-size: 13px;
+}
+QToolButton#backButton {
+    background-color: transparent;
+    border: none;
+    color: @accentYellow;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 0;
+}
+QToolButton#backButton:hover {
+    color: @accentCyan;
+}
+QLabel#detailTitle {
+    color: @textPrimary;
+    font-size: 20px;
+    font-weight: 700;
+}
+QLabel#memoryDetailValue {
+    color: @accentYellow;
+    font-size: 26px;
+    font-weight: 700;
+}
+QTreeWidget#sensorTree {
+    background-color: transparent;
+    border: none;
+    color: @textPrimary;
+    font-size: 12px;
+    outline: none;
+}
+QTreeWidget#sensorTree::item {
+    background-color: transparent;
+    padding: 1px 0;
+}
+QTreeWidget#sensorTree::item:selected,
+QTreeWidget#sensorTree::item:hover {
+    background-color: transparent;
+}
+QTreeWidget#sensorTree::branch {
+    background-color: transparent;
+}
+QTreeWidget#sensorTree QScrollBar:vertical {
+    background-color: transparent;
+    border: none;
+    width: 6px;
+    margin: 0;
+}
+QTreeWidget#sensorTree QScrollBar::handle:vertical {
+    background-color: rgba(88, 217, 255, 0.45);
+    border-radius: 3px;
+    min-height: 24px;
+}
+QTreeWidget#sensorTree QScrollBar::add-line:vertical,
+QTreeWidget#sensorTree QScrollBar::sub-line:vertical {
+    height: 0;
 }
 )");
 

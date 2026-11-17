@@ -1,0 +1,41 @@
+#pragma once
+
+#include "model/monitor_snapshot.h"
+
+#include <QWidget>
+
+class QLabel;
+
+namespace monitor
+{
+
+class DetailHeader;
+class HistoryChart;
+
+class MemoryDetailPage final : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit MemoryDetailPage(QWidget* parent = nullptr);
+    ~MemoryDetailPage() override = default;
+
+    void setSnapshot(const MemorySnapshot& snapshot);
+    void setHistorySeries(const QVector<HistorySeries>& histories);
+
+signals:
+    void backRequested();
+
+private:
+    void updateChart();
+    [[nodiscard]] QString formatMemoryValue(const MemorySnapshot& snapshot) const;
+
+    DetailHeader* m_header{nullptr};
+    QLabel* m_memoryValueLabel{nullptr};
+    HistoryChart* m_memoryChart{nullptr};
+    MemorySnapshot m_snapshot;
+    QVector<HistorySeries> m_histories;
+};
+
+} // namespace monitor
+

@@ -3,16 +3,18 @@
 #include "model/monitor_snapshot.h"
 
 #include <QMainWindow>
+#include <QVector>
 
-class QLabel;
+class QStackedWidget;
 class QWidget;
 
 namespace monitor
 {
 
-class ConnectionStatusWidget;
-class MetricField;
-class MonitorCard;
+class CpuDetailPage;
+class DashboardPage;
+class GpuDetailPage;
+class MemoryDetailPage;
 
 class MainWindow final : public QMainWindow
 {
@@ -23,29 +25,20 @@ public:
     ~MainWindow() override = default;
 
     void setSnapshot(const MonitorSnapshot& snapshot);
+    void setHistorySeries(const QVector<HistorySeries>& histories);
 
 private:
-    [[nodiscard]] QWidget* createHeader(QWidget* parent);
-    [[nodiscard]] MonitorCard* createCpuCard(QWidget* parent);
-    [[nodiscard]] MonitorCard* createGpuCard(QWidget* parent);
-    [[nodiscard]] MonitorCard* createMemoryCard(QWidget* parent);
-    [[nodiscard]] QWidget* createPowerStrip(QWidget* parent);
-    [[nodiscard]] QString formatMemoryValue(const MemorySnapshot& memory) const;
+    void showPage(QWidget* page);
+    void showDashboardPage();
+    void showCpuDetailPage();
+    void showGpuDetailPage();
+    void showMemoryDetailPage();
 
-    ConnectionStatusWidget* m_connectionStatus{nullptr};
-    MonitorCard* m_cpuCard{nullptr};
-    MonitorCard* m_gpuCard{nullptr};
-    MonitorCard* m_memoryCard{nullptr};
-    MetricField* m_cpuPowerField{nullptr};
-    MetricField* m_cpuClockField{nullptr};
-    MetricField* m_cpuTemperatureField{nullptr};
-    MetricField* m_gpuPowerField{nullptr};
-    MetricField* m_gpuClockField{nullptr};
-    MetricField* m_gpuTemperatureField{nullptr};
-    MetricField* m_gpuMemoryField{nullptr};
-    QLabel* m_memoryValueLabel{nullptr};
-    QLabel* m_totalPowerValueLabel{nullptr};
-    QLabel* m_totalPowerUnitLabel{nullptr};
+    QStackedWidget* m_pageStack{nullptr};
+    DashboardPage* m_dashboardPage{nullptr};
+    CpuDetailPage* m_cpuDetailPage{nullptr};
+    GpuDetailPage* m_gpuDetailPage{nullptr};
+    MemoryDetailPage* m_memoryDetailPage{nullptr};
 };
 
 } // namespace monitor

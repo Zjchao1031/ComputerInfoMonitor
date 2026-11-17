@@ -22,16 +22,31 @@ qt_add_executable(computer-info-monitor
     include/core/app_config.h
     include/core/monitor_service.h
     include/mock/mock_monitor_data.h
+    include/model/history_series_ids.h
     include/model/monitor_snapshot.h
     include/ui/connection_status_widget.h
+    include/ui/cpu_detail_page.h
+    include/ui/cpu_sensor_tree.h
+    include/ui/dashboard_page.h
+    include/ui/detail_header.h
+    include/ui/gpu_detail_page.h
+    include/ui/history_chart.h
     include/ui/main_window.h
+    include/ui/memory_detail_page.h
     include/ui/metric_field.h
     include/ui/monitor_card.h
     include/ui/theme.h
     src/core/monitor_service.cpp
     src/mock/mock_monitor_data.cpp
     src/ui/connection_status_widget.cpp
+    src/ui/cpu_detail_page.cpp
+    src/ui/cpu_sensor_tree.cpp
+    src/ui/dashboard_page.cpp
+    src/ui/detail_header.cpp
+    src/ui/gpu_detail_page.cpp
+    src/ui/history_chart.cpp
     src/ui/main_window.cpp
+    src/ui/memory_detail_page.cpp
     src/ui/metric_field.cpp
     src/ui/monitor_card.cpp
     src/ui/theme.cpp

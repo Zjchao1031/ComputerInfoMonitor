@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("ComputerInfoMonitor 静态主界面"));
+    parser.setApplicationDescription(QStringLiteral("ComputerInfoMonitor Mock 界面"));
     parser.addHelpOption();
     const QCommandLineOption mockWithoutGpuOption(QStringList{QStringLiteral("mock-no-gpu")}, QStringLiteral("使用无独立显卡的 Mock 数据"));
     parser.addOption(mockWithoutGpuOption);
@@ -24,7 +24,11 @@ int main(int argc, char* argv[])
 
     monitor::MainWindow window;
     if (parser.isSet(mockWithoutGpuOption))
-        window.setSnapshot(monitor::MockMonitorData::createSnapshot(false));
+    {
+        const monitor::MonitorSnapshot snapshot = monitor::MockMonitorData::createSnapshot(false);
+        window.setSnapshot(snapshot);
+        window.setHistorySeries(monitor::MockMonitorData::createHistorySeries(snapshot));
+    }
 
     window.show();
 
