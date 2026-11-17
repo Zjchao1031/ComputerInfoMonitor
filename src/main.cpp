@@ -1,3 +1,4 @@
+#include "core/app_config.h"
 #include "mock/mock_monitor_data.h"
 #include "ui/main_window.h"
 
@@ -5,8 +6,12 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDebug>
 #include <QStringLiteral>
 #include <QStringList>
+
+#include <cstdlib>
+#include <optional>
 
 int main(int argc, char* argv[])
 {
@@ -21,6 +26,14 @@ int main(int argc, char* argv[])
     const QCommandLineOption mockWithoutGpuOption(QStringList{QStringLiteral("mock-no-gpu")}, QStringLiteral("使用无独立显卡的 Mock 数据"));
     parser.addOption(mockWithoutGpuOption);
     parser.process(application);
+
+    QString configError;
+    const std::optional<monitor::AppConfig> config = monitor::AppConfig::loadFromFile(monitor::AppConfig::defaultFilePath(), configError);
+    if (!config.has_value())
+    {
+        qCritical().noquote() << QStringLiteral("配置错误：%1").arg(configError);
+        return EXIT_FAILURE;
+    }
 
     monitor::MainWindow window;
     if (parser.isSet(mockWithoutGpuOption))

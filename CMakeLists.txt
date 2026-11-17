@@ -20,6 +20,7 @@ qt_add_executable(computer-info-monitor
     resources/resources.qrc
     src/main.cpp
     include/core/app_config.h
+    include/core/fixed_parameters.h
     include/core/monitor_service.h
     include/mock/mock_monitor_data.h
     include/model/history_series_ids.h
@@ -36,6 +37,7 @@ qt_add_executable(computer-info-monitor
     include/ui/metric_field.h
     include/ui/monitor_card.h
     include/ui/theme.h
+    src/core/app_config.cpp
     src/core/monitor_service.cpp
     src/mock/mock_monitor_data.cpp
     src/ui/connection_status_widget.cpp
@@ -76,4 +78,17 @@ set_target_properties(computer-info-monitor PROPERTIES
 install(TARGETS computer-info-monitor
     RUNTIME DESTINATION bin
 )
+
+if(WIN32)
+    add_custom_command(TARGET computer-info-monitor POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:computer-info-monitor>/config"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/config/monitor.ini"
+            "$<TARGET_FILE_DIR:computer-info-monitor>/config/monitor.ini"
+    )
+else()
+    install(FILES config/monitor.ini
+        DESTINATION "/etc/computer-info-monitor"
+    )
+endif()
 

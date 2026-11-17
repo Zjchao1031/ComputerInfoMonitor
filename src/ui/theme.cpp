@@ -1,5 +1,7 @@
 #include "ui/theme.h"
 
+#include "core/fixed_parameters.h"
+
 #include <QLatin1String>
 #include <QStringLiteral>
 
@@ -219,9 +221,9 @@ QColor temperatureColor(const MetricValue& temperature)
         return QColor(kTextSecondary);
 
     const double value = *temperature.value;
-    if (value < 60.0)
+    if (value < fixed::kTemperatureWarningCelsius)
         return QColor(kOnline);
-    if (value <= 80.0)
+    if (value <= fixed::kTemperatureHighCelsius)
         return QColor(kDelayed);
     return QColor(kOffline);
 }
