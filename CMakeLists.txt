@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Network Widgets)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network Widgets)
 
 qt_standard_project_setup()
 
@@ -22,7 +22,6 @@ qt_add_executable(computer-info-monitor
     include/core/app_config.h
     include/core/fixed_parameters.h
     include/core/monitor_service.h
-    include/mock/mock_monitor_data.h
     include/model/history_series_ids.h
     include/model/monitor_snapshot.h
     include/ui/connection_status_widget.h
@@ -38,8 +37,11 @@ qt_add_executable(computer-info-monitor
     include/ui/monitor_card.h
     include/ui/theme.h
     src/core/app_config.cpp
+    src/core/lhm_json_parser.cpp
+    src/core/lhm_json_parser.h
+    src/core/lhm_parser_worker.cpp
+    src/core/lhm_parser_worker.h
     src/core/monitor_service.cpp
-    src/mock/mock_monitor_data.cpp
     src/ui/connection_status_widget.cpp
     src/ui/cpu_detail_page.cpp
     src/ui/cpu_sensor_tree.cpp
@@ -56,6 +58,7 @@ qt_add_executable(computer-info-monitor
 
 target_link_libraries(computer-info-monitor
     PRIVATE
+        Qt6::Core
         Qt6::Network
         Qt6::Widgets
 )
@@ -80,12 +83,14 @@ install(TARGETS computer-info-monitor
 )
 
 add_custom_command(TARGET computer-info-monitor POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/config/monitor.ini"
-        "$<TARGET_FILE_DIR:computer-info-monitor>/monitor.ini"
+    COMMAND "${CMAKE_COMMAND}"
+        "-DMONITOR_CONFIG_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/monitor.ini"
+        "-DMONITOR_CONFIG_DESTINATION=$<TARGET_FILE_DIR:computer-info-monitor>/monitor.ini"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CopyMonitorConfig.cmake"
+    VERBATIM
 )
 
-install(FILES config/monitor.ini
+install(FILES monitor.ini
     DESTINATION bin
 )
 

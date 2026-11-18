@@ -75,7 +75,7 @@ QLabel#metricUnit {
     font-weight: 500;
 }
 QLabel#memoryValue {
-    color: @accentYellow;
+    color: @textPrimary;
     font-size: 26px;
     font-weight: 700;
 }
@@ -89,12 +89,12 @@ QLabel#powerTitle {
     font-weight: 600;
 }
 QLabel#powerValue {
-    color: @accentYellow;
+    color: @textPrimary;
     font-size: 27px;
     font-weight: 700;
 }
 QLabel#powerUnit {
-    color: @accentYellow;
+    color: @textSecondary;
     font-size: 15px;
     font-weight: 600;
 }

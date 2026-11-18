@@ -1,3 +1,4 @@
+# i.MX6ULL ARM Linux 交叉编译工具链配置。
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR arm)
 

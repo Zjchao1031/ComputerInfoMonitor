@@ -1,0 +1,164 @@
+#!/bin/sh
+#
+# ComputerInfoMonitor 板端 BusyBox init 脚本。
+#
+# 源文件：scripts/S99computer-info-monitor
+# 部署路径：/etc/init.d/S99computer-info-monitor
+# 程序路径：/opt/computer-info-monitor/computer-info-monitor
+#
+# Qt 通过 linuxfb 直接绘制到开发板 framebuffer。程序工作目录固定为应用目录，
+# 以便 monitor.ini 与可执行程序保持同级。
+#
+
+set -u
+
+PROGRAM_NAME=computer-info-monitor
+APP_DIR=/opt/computer-info-monitor
+DAEMON=$APP_DIR/computer-info-monitor
+PID_FILE=/var/run/computer-info-monitor.pid
+STOP_WAIT_SECONDS=10
+
+log_message() {
+    printf '%s: %s\n' "$PROGRAM_NAME" "$*"
+}
+
+read_pid() {
+    [ -f "$PID_FILE" ] || return 1
+
+    pid=$(cat "$PID_FILE" 2>/dev/null) || return 1
+    case "$pid" in
+        ''|*[!0-9]*)
+            return 1
+            ;;
+    esac
+
+    printf '%s\n' "$pid"
+}
+
+is_running() {
+    pid=$(read_pid) || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+
+    if [ -r "/proc/$pid/cmdline" ]; then
+        cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)
+        case "$cmdline" in
+            *"$DAEMON"*)
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    fi
+
+    return 0
+}
+
+start_service() {
+    if is_running; then
+        log_message "已在运行（PID $(read_pid)）"
+        return 0
+    fi
+
+    rm -f "$PID_FILE"
+
+    if [ ! -x "$DAEMON" ]; then
+        log_message "启动失败：程序不存在或不可执行：$DAEMON"
+        return 1
+    fi
+
+    mkdir -p /var/run
+    cd "$APP_DIR" || {
+        log_message "启动失败：无法进入工作目录：$APP_DIR"
+        return 1
+    }
+
+    LANG=en_US.UTF-8
+    LC_ALL=en_US.UTF-8
+    QT_QPA_PLATFORM=linuxfb:fb=/dev/fb0
+    QT_QPA_FONTDIR=/usr/share/fonts
+    export LANG LC_ALL QT_QPA_PLATFORM QT_QPA_FONTDIR
+    umask 022
+
+    (
+        trap '' HUP
+        exec "$DAEMON" >/dev/console 2>&1
+    ) &
+    app_pid=$!
+
+    printf '%s\n' "$app_pid" > "$PID_FILE"
+    sleep 1
+
+    if ! kill -0 "$app_pid" 2>/dev/null; then
+        rm -f "$PID_FILE"
+        log_message "启动失败：进程已退出，请查看 /dev/console 与 monitor.ini"
+        return 1
+    fi
+
+    log_message "已启动（PID $app_pid）"
+    return 0
+}
+
+stop_service() {
+    if ! is_running; then
+        rm -f "$PID_FILE"
+        log_message "未运行"
+        return 0
+    fi
+
+    app_pid=$(read_pid)
+    log_message "正在停止（PID $app_pid）"
+    kill -TERM "$app_pid" 2>/dev/null || true
+
+    waited=0
+    while [ "$waited" -lt "$STOP_WAIT_SECONDS" ]; do
+        if ! kill -0 "$app_pid" 2>/dev/null; then
+            rm -f "$PID_FILE"
+            log_message "已停止"
+            return 0
+        fi
+
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    log_message "等待 $STOP_WAIT_SECONDS 秒后仍未退出，强制终止（PID $app_pid）"
+    kill -KILL "$app_pid" 2>/dev/null || true
+    rm -f "$PID_FILE"
+    return 1
+}
+
+status_service() {
+    if is_running; then
+        log_message "正在运行（PID $(read_pid)）"
+        return 0
+    fi
+
+    log_message "未运行"
+    return 3
+}
+
+usage() {
+    printf '用法：%s {start|stop|restart|status}\n' "$0" >&2
+}
+
+case "${1:-}" in
+    start)
+        start_service
+        ;;
+    stop)
+        stop_service
+        ;;
+    restart)
+        stop_service
+        start_service
+        ;;
+    status)
+        status_service
+        ;;
+    *)
+        usage
+        exit 2
+        ;;
+esac
+
+exit $?

@@ -59,8 +59,8 @@ CpuDetailPage::CpuDetailPage(QWidget* parent)
 
     m_sensorTree = new CpuSensorTree(this);
 
-    bodyLayout->addLayout(chartLayout, 3);
-    bodyLayout->addWidget(m_sensorTree, 1);
+    bodyLayout->addLayout(chartLayout, 7);
+    bodyLayout->addWidget(m_sensorTree, 3);
     rootLayout->addLayout(bodyLayout, 1);
 }
 

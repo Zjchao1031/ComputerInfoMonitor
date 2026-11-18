@@ -100,6 +100,8 @@ struct HistorySeries
 {
     QString identifier;
     QString unit;
+    int windowSeconds{60};
+    int sampleIntervalMs{1000};
     QVector<HistoryPoint> points;
 };
 
@@ -107,4 +109,5 @@ struct HistorySeries
 
 Q_DECLARE_METATYPE(monitor::ConnectionState)
 Q_DECLARE_METATYPE(monitor::MonitorSnapshot)
+Q_DECLARE_METATYPE(monitor::HistorySeries)
 

@@ -25,6 +25,8 @@ private:
     QString m_unit;
     QColor m_lineColor;
     int m_decimalPlaces{1};
+    int m_windowSeconds{60};
+    int m_sampleIntervalMs{1000};
     QVector<HistoryPoint> m_points;
     MetricValue m_current;
 };

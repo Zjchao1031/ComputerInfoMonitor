@@ -1,12 +1,16 @@
 #include "ui/main_window.h"
 
-#include "mock/mock_monitor_data.h"
 #include "ui/cpu_detail_page.h"
 #include "ui/dashboard_page.h"
 #include "ui/gpu_detail_page.h"
 #include "ui/memory_detail_page.h"
 #include "ui/theme.h"
 
+#include <QCloseEvent>
+#include <QCoreApplication>
+#include <QEvent>
+#include <QGuiApplication>
+#include <QPalette>
 #include <QStackedWidget>
 #include <QStringLiteral>
 #include <QVBoxLayout>
@@ -30,8 +34,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
 {
     setWindowTitle(QStringLiteral("电脑信息监控终端"));
-    resize(1024, 600);
-    setMinimumSize(1024, 600);
+    setFixedSize(1024, 600);
 
     auto* centralWidget = new QWidget(this);
     centralWidget->setObjectName(QStringLiteral("centralWidget"));
@@ -67,9 +70,7 @@ MainWindow::MainWindow(QWidget* parent)
     setCentralWidget(centralWidget);
     setStyleSheet(theme::styleSheet());
 
-    const MonitorSnapshot mockSnapshot = MockMonitorData::createSnapshot(true);
-    setSnapshot(mockSnapshot);
-    setHistorySeries(MockMonitorData::createHistorySeries(mockSnapshot));
+    setSnapshot(MonitorSnapshot{});
 }
 
 void MainWindow::setSnapshot(const MonitorSnapshot& snapshot)
@@ -88,6 +89,38 @@ void MainWindow::setHistorySeries(const QVector<HistorySeries>& histories)
     m_cpuDetailPage->setHistorySeries(histories);
     m_gpuDetailPage->setHistorySeries(histories);
     m_memoryDetailPage->setHistorySeries(histories);
+}
+
+void MainWindow::prepareForShutdown()
+{
+    if (m_shutdownPrepared)
+        return;
+
+    m_shutdownPrepared = true;
+
+    auto* shutdownOverlay = new QWidget(this);
+    shutdownOverlay->setAutoFillBackground(true);
+
+    QPalette overlayPalette = shutdownOverlay->palette();
+    overlayPalette.setColor(QPalette::Window, Qt::black);
+    shutdownOverlay->setPalette(overlayPalette);
+    shutdownOverlay->setGeometry(rect());
+    shutdownOverlay->show();
+    shutdownOverlay->raise();
+    shutdownOverlay->repaint();
+
+    QCoreApplication::sendPostedEvents(shutdownOverlay, QEvent::Paint);
+    QGuiApplication::sync();
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    event->ignore();
+    if (m_shutdownRequested)
+        return;
+
+    m_shutdownRequested = true;
+    QCoreApplication::quit();
 }
 
 void MainWindow::showPage(QWidget* page)

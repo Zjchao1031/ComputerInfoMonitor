@@ -13,6 +13,9 @@ public:
     explicit CpuSensorTree(QWidget* parent = nullptr);
 
     void setGroups(const QVector<SensorGroup>& groups);
+
+protected:
+    void scrollContentsBy(int dx, int dy) override;
 };
 
 } // namespace monitor

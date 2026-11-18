@@ -7,6 +7,7 @@
 
 class QStackedWidget;
 class QWidget;
+class QCloseEvent;
 
 namespace monitor
 {
@@ -26,6 +27,10 @@ public:
 
     void setSnapshot(const MonitorSnapshot& snapshot);
     void setHistorySeries(const QVector<HistorySeries>& histories);
+    void prepareForShutdown();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     void showPage(QWidget* page);
@@ -39,6 +44,8 @@ private:
     CpuDetailPage* m_cpuDetailPage{nullptr};
     GpuDetailPage* m_gpuDetailPage{nullptr};
     MemoryDetailPage* m_memoryDetailPage{nullptr};
+    bool m_shutdownRequested{false};
+    bool m_shutdownPrepared{false};
 };
 
 } // namespace monitor

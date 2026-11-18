@@ -47,7 +47,7 @@ void DashboardPage::setSnapshot(const MonitorSnapshot& snapshot)
     m_cpuPowerField->setValue(snapshot.cpu.packagePower);
     m_cpuClockField->setValue(snapshot.cpu.maximumPCoreClock);
     m_cpuTemperatureField->setValue(snapshot.cpu.coreMaximumTemperature);
-    m_cpuTemperatureField->setValueColor(theme::temperatureColor(snapshot.cpu.coreMaximumTemperature));
+    m_cpuTemperatureField->resetValueColor();
 
     m_gpuCard->setHardwareName(snapshot.gpu.name);
     m_gpuPowerField->setValue(snapshot.gpu.packagePower);
