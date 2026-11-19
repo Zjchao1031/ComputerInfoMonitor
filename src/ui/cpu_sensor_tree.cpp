@@ -8,6 +8,7 @@
 #include <QHeaderView>
 #include <QRegularExpression>
 #include <QScrollBar>
+#include <QScroller>
 #include <QStringList>
 #include <QTimer>
 #include <QTreeWidgetItem>
@@ -92,6 +93,9 @@ CpuSensorTree::CpuSensorTree(QWidget* parent)
     setWordWrap(true);
     setTextElideMode(Qt::ElideNone);
     setExpandsOnDoubleClick(true);
+
+    // tslib 将触摸转换为左键拖动，列表需要按鼠标拖动手势接管平移。
+    QScroller::grabGesture(viewport(), QScroller::LeftMouseButtonGesture);
 
     header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
