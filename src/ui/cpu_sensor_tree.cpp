@@ -7,20 +7,22 @@
 #include <QHash>
 #include <QHeaderView>
 #include <QRegularExpression>
-#include <QScrollBar>
 #include <QScroller>
+#include <QSet>
 #include <QStringList>
-#include <QTimer>
 #include <QTreeWidgetItem>
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 namespace monitor
 {
 
 namespace
 {
+
+constexpr int kValueColumnWidth = 76;
 
 bool shouldDisplaySensor(const SensorReading& sensor)
 {
@@ -73,6 +75,20 @@ bool temperatureSensorLessThan(const SensorReading& left, const SensorReading& r
     return leftKey.variant < rightKey.variant;
 }
 
+QString groupKey(SensorCategory category, const QString& title)
+{
+    // 分隔符不会出现在当前显示标题中，避免不同类别和标题组合产生相同键。
+    return QString::number(static_cast<int>(category)) + QChar(0x1f) + title;
+}
+
+QString sensorValueText(const SensorReading& sensor)
+{
+    if (sensor.current.value.has_value() && std::isfinite(*sensor.current.value))
+        return QStringLiteral("%1 %2").arg(QString::number(*sensor.current.value, 'f', 1)).arg(sensor.current.unit);
+
+    return QStringLiteral("--");
+}
+
 } // namespace
 
 CpuSensorTree::CpuSensorTree(QWidget* parent)
@@ -83,56 +99,81 @@ CpuSensorTree::CpuSensorTree(QWidget* parent)
     setHeaderHidden(true);
     setRootIsDecorated(true);
     setIndentation(14);
-    setUniformRowHeights(false);
+    setUniformRowHeights(true);
     setAlternatingRowColors(false);
     setFocusPolicy(Qt::NoFocus);
     setSelectionMode(QAbstractItemView::NoSelection);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    setWordWrap(true);
-    setTextElideMode(Qt::ElideNone);
+    setWordWrap(false);
+    setTextElideMode(Qt::ElideRight);
     setExpandsOnDoubleClick(true);
 
     // tslib 将触摸转换为左键拖动，列表需要按鼠标拖动手势接管平移。
     QScroller::grabGesture(viewport(), QScroller::LeftMouseButtonGesture);
 
-    header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    header()->resizeSection(1, kValueColumnWidth);
     header()->setStretchLastSection(false);
 }
 
 void CpuSensorTree::setGroups(const QVector<SensorGroup>& groups)
 {
-    QScrollBar* scrollBar = verticalScrollBar();
-    const int scrollPosition = scrollBar->value();
-
-    QHash<QString, bool> expansionState;
-    for (int index = 0; index < topLevelItemCount(); ++index)
-    {
-        QTreeWidgetItem* item = topLevelItem(index);
-        expansionState.insert(item->text(0), item->isExpanded());
-    }
-
-    clear();
-
+    QSet<QString> usedGroupKeys;
+    int visibleGroupIndex = 0;
     for (const SensorGroup& group : groups)
     {
-        QVector<SensorReading> visibleSensors;
+        QVector<const SensorReading*> visibleSensors;
         visibleSensors.reserve(group.sensors.size());
         for (const SensorReading& sensor : group.sensors)
         {
             if (shouldDisplaySensor(sensor))
-                visibleSensors.append(sensor);
+                visibleSensors.append(&sensor);
         }
 
         if (group.category == SensorCategory::Temperature)
-            std::stable_sort(visibleSensors.begin(), visibleSensors.end(), temperatureSensorLessThan);
+        {
+            std::stable_sort(visibleSensors.begin(), visibleSensors.end(), [](const SensorReading* left, const SensorReading* right)
+            {
+                return temperatureSensorLessThan(*left, *right);
+            });
+        }
 
         if (visibleSensors.isEmpty())
             continue;
 
-        auto* groupItem = new QTreeWidgetItem(this, QStringList{QStringLiteral("%1 (%2)").arg(group.title).arg(visibleSensors.size())});
+        const QString currentGroupKey = groupKey(group.category, group.title);
+        usedGroupKeys.insert(currentGroupKey);
+        GroupNodeState& groupState = ensureGroup(currentGroupKey, group.title, visibleSensors.size(), visibleGroupIndex);
+        const QString groupText = QStringLiteral("%1 (%2)").arg(group.title).arg(visibleSensors.size());
+        if (groupState.item->text(0) != groupText)
+            groupState.item->setText(0, groupText);
+
+        QSet<QString> usedSensorIds;
+        int visibleSensorIndex = 0;
+        for (const SensorReading* sensor : visibleSensors)
+        {
+            usedSensorIds.insert(sensor->sensorId);
+            SensorNodeState& sensorState = ensureSensor(groupState, *sensor, visibleSensorIndex);
+            updateSensor(sensorState, *sensor);
+            ++visibleSensorIndex;
+        }
+
+        removeStaleSensors(groupState, usedSensorIds);
+        ++visibleGroupIndex;
+    }
+
+    removeStaleGroups(usedGroupKeys);
+}
+
+CpuSensorTree::GroupNodeState& CpuSensorTree::ensureGroup(const QString& key, const QString& title, int sensorCount, int index)
+{
+    auto groupIterator = m_groups.find(key);
+    if (groupIterator == m_groups.end())
+    {
+        auto groupItem = std::make_unique<QTreeWidgetItem>(QStringList{QStringLiteral("%1 (%2)").arg(title).arg(sensorCount)});
         groupItem->setFirstColumnSpanned(true);
 
         QFont groupFont = font();
@@ -140,25 +181,113 @@ void CpuSensorTree::setGroups(const QVector<SensorGroup>& groups)
         groupItem->setFont(0, groupFont);
         groupItem->setForeground(0, QColor(theme::kAccentCyan));
 
-        for (const SensorReading& sensor : visibleSensors)
-        {
-            QString valueText = QStringLiteral("--");
-            if (sensor.current.value.has_value() && std::isfinite(*sensor.current.value))
-                valueText = QStringLiteral("%1 %2").arg(QString::number(*sensor.current.value, 'f', 1)).arg(sensor.current.unit);
+        QTreeWidgetItem* createdItem = groupItem.get();
+        insertTopLevelItem(index, createdItem);
+        groupItem.release();
 
-            auto* sensorItem = new QTreeWidgetItem(groupItem, QStringList{sensor.name, valueText});
-            sensorItem->setForeground(0, QColor(theme::kTextPrimary));
-            sensorItem->setForeground(1, sensor.current.isAvailable() ? QColor(theme::kTextSecondary) : QColor(theme::kOffline));
-            sensorItem->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
-        }
-
-        groupItem->setExpanded(expansionState.value(group.title, true));
+        GroupNodeState state;
+        state.item = createdItem;
+        groupIterator = m_groups.insert(key, state);
+        createdItem->setExpanded(true);
+        return *groupIterator;
     }
 
-    QTimer::singleShot(0, this, [scrollBar, scrollPosition]()
+    GroupNodeState& state = *groupIterator;
+    const int currentIndex = indexOfTopLevelItem(state.item);
+    if (currentIndex != index)
     {
-        scrollBar->setValue(qMin(scrollPosition, scrollBar->maximum()));
-    });
+        std::unique_ptr<QTreeWidgetItem> movedItem(takeTopLevelItem(currentIndex));
+        insertTopLevelItem(index, movedItem.get());
+        movedItem.release();
+    }
+
+    return state;
+}
+
+CpuSensorTree::SensorNodeState& CpuSensorTree::ensureSensor(GroupNodeState& group, const SensorReading& sensor, int index)
+{
+    auto sensorIterator = group.sensors.find(sensor.sensorId);
+    if (sensorIterator == group.sensors.end())
+    {
+        auto sensorItem = std::make_unique<QTreeWidgetItem>(QStringList{sensor.name, QStringLiteral("--")});
+        sensorItem->setForeground(0, QColor(theme::kTextPrimary));
+        sensorItem->setForeground(1, QColor(theme::kOffline));
+        sensorItem->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
+
+        QTreeWidgetItem* createdItem = sensorItem.get();
+        group.item->insertChild(index, createdItem);
+        sensorItem.release();
+
+        SensorNodeState state;
+        state.item = createdItem;
+        state.valueText = QStringLiteral("--");
+        return *group.sensors.insert(sensor.sensorId, state);
+    }
+
+    SensorNodeState& state = *sensorIterator;
+    const int currentIndex = group.item->indexOfChild(state.item);
+    if (currentIndex != index)
+    {
+        std::unique_ptr<QTreeWidgetItem> movedItem(group.item->takeChild(currentIndex));
+        group.item->insertChild(index, movedItem.get());
+        movedItem.release();
+    }
+
+    return state;
+}
+
+void CpuSensorTree::updateSensor(SensorNodeState& state, const SensorReading& sensor)
+{
+    if (state.item->text(0) != sensor.name)
+        state.item->setText(0, sensor.name);
+
+    const QString currentValueText = sensorValueText(sensor);
+    if (state.valueText != currentValueText)
+    {
+        state.item->setText(1, currentValueText);
+        state.valueText = currentValueText;
+    }
+
+    const bool available = sensor.current.isAvailable();
+    if (state.available != available)
+    {
+        state.item->setForeground(1, available ? QColor(theme::kTextSecondary) : QColor(theme::kOffline));
+        state.available = available;
+    }
+}
+
+void CpuSensorTree::removeStaleSensors(GroupNodeState& group, const QSet<QString>& usedSensorIds)
+{
+    const auto sensorIds = group.sensors.keys();
+    for (const QString& sensorId : sensorIds)
+    {
+        if (usedSensorIds.contains(sensorId))
+            continue;
+
+        const SensorNodeState removedState = group.sensors.take(sensorId);
+        const int childIndex = group.item->indexOfChild(removedState.item);
+        if (childIndex >= 0)
+        {
+            std::unique_ptr<QTreeWidgetItem> removedItem(group.item->takeChild(childIndex));
+        }
+    }
+}
+
+void CpuSensorTree::removeStaleGroups(const QSet<QString>& usedGroupKeys)
+{
+    const auto groupKeys = m_groups.keys();
+    for (const QString& key : groupKeys)
+    {
+        if (usedGroupKeys.contains(key))
+            continue;
+
+        const GroupNodeState removedState = m_groups.take(key);
+        const int groupIndex = indexOfTopLevelItem(removedState.item);
+        if (groupIndex >= 0)
+        {
+            std::unique_ptr<QTreeWidgetItem> removedItem(takeTopLevelItem(groupIndex));
+        }
+    }
 }
 
 void CpuSensorTree::scrollContentsBy(int dx, int dy)
