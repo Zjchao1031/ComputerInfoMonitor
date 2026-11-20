@@ -5,7 +5,9 @@
 #include "ui/monitor_card.h"
 #include "ui/theme.h"
 
+#include <QDateTime>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QStringLiteral>
@@ -15,6 +17,14 @@
 
 namespace monitor
 {
+
+namespace
+{
+
+constexpr int kHardwareCardsHeight = 212;
+constexpr int kMemoryCardHeight = 130;
+
+} // namespace
 
 DashboardPage::DashboardPage(QWidget* parent)
     : QWidget(parent)
@@ -27,18 +37,23 @@ DashboardPage::DashboardPage(QWidget* parent)
 
     rootLayout->addWidget(createHeader(this));
 
-    auto* metricsRow = new QHBoxLayout();
+    auto* metricsContainer = new QWidget(this);
+    metricsContainer->setFixedHeight(kHardwareCardsHeight);
+
+    auto* metricsRow = new QHBoxLayout(metricsContainer);
     metricsRow->setContentsMargins(0, 0, 0, 0);
     metricsRow->setSpacing(10);
     m_cpuCard = createCpuCard(this);
     m_gpuCard = createGpuCard(this);
     metricsRow->addWidget(m_cpuCard, 1);
     metricsRow->addWidget(m_gpuCard, 1);
-    rootLayout->addLayout(metricsRow, 3);
+    rootLayout->addWidget(metricsContainer);
 
     m_memoryCard = createMemoryCard(this);
-    rootLayout->addWidget(m_memoryCard, 1);
+    m_memoryCard->setFixedHeight(kMemoryCardHeight);
+    rootLayout->addWidget(m_memoryCard);
     rootLayout->addWidget(createPowerStrip(this));
+    rootLayout->addStretch();
 }
 
 void DashboardPage::setSnapshot(const MonitorSnapshot& snapshot)
@@ -47,14 +62,13 @@ void DashboardPage::setSnapshot(const MonitorSnapshot& snapshot)
     m_cpuPowerField->setValue(snapshot.cpu.packagePower);
     m_cpuClockField->setValue(snapshot.cpu.maximumPCoreClock);
     m_cpuTemperatureField->setValue(snapshot.cpu.coreMaximumTemperature);
-    m_cpuTemperatureField->resetValueColor();
 
-    m_gpuCard->setHardwareName(snapshot.gpu.name);
-    m_gpuPowerField->setValue(snapshot.gpu.packagePower);
-    m_gpuClockField->setValue(snapshot.gpu.coreClock);
-    m_gpuTemperatureField->setValue(snapshot.gpu.coreTemperature);
-    m_gpuMemoryField->setValue(snapshot.gpu.memoryUsed, 0);
-    m_gpuCard->setVisible(snapshot.hasDiscreteGpu);
+    const GpuSnapshot gpuSnapshot = snapshot.hasDiscreteGpu ? snapshot.gpu : GpuSnapshot{};
+    m_gpuCard->setHardwareName(gpuSnapshot.name);
+    m_gpuPowerField->setValue(gpuSnapshot.packagePower);
+    m_gpuClockField->setValue(gpuSnapshot.coreClock);
+    m_gpuTemperatureField->setValue(gpuSnapshot.coreTemperature);
+    m_gpuMemoryField->setValue(gpuSnapshot.memoryUsed, 0);
 
     m_memoryValueLabel->setText(formatMemoryValue(snapshot.memory));
 
@@ -64,7 +78,12 @@ void DashboardPage::setSnapshot(const MonitorSnapshot& snapshot)
         m_totalPowerValueLabel->setText(QStringLiteral("--"));
 
     m_totalPowerUnitLabel->setText(snapshot.cpuGpuTotalPower.unit.isEmpty() ? QStringLiteral("W") : snapshot.cpuGpuTotalPower.unit);
-    m_connectionStatus->setStatus(snapshot.connectionState, snapshot.receivedAt);
+    m_connectionStatus->setStatus(snapshot.connectionState);
+
+    if (snapshot.receivedAt.isValid())
+        m_lastUpdatedLabel->setText(QStringLiteral("最后更新 %1").arg(snapshot.receivedAt.toString(QStringLiteral("HH:mm:ss"))));
+    else
+        m_lastUpdatedLabel->setText(QStringLiteral("暂无更新时间"));
 }
 
 QWidget* DashboardPage::createHeader(QWidget* parent)
@@ -73,18 +92,34 @@ QWidget* DashboardPage::createHeader(QWidget* parent)
     header->setObjectName(QStringLiteral("statusHeader"));
     header->setFixedHeight(40);
 
-    auto* layout = new QHBoxLayout(header);
+    auto* layout = new QGridLayout(header);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(16);
+    layout->setSpacing(0);
 
-    auto* titleLabel = new QLabel(QStringLiteral("PC 监控"), header);
+    auto* leftContainer = new QWidget(header);
+    auto* leftLayout = new QHBoxLayout(leftContainer);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(16);
+
+    auto* titleLabel = new QLabel(QStringLiteral("PC 监控"), leftContainer);
     titleLabel->setObjectName(QStringLiteral("pageTitle"));
+
+    m_lastUpdatedLabel = new QLabel(leftContainer);
+    m_lastUpdatedLabel->setObjectName(QStringLiteral("lastUpdated"));
+    m_lastUpdatedLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    leftLayout->addWidget(titleLabel);
+    leftLayout->addWidget(m_lastUpdatedLabel);
+    leftLayout->addStretch();
 
     m_connectionStatus = new ConnectionStatusWidget(header);
 
-    layout->addWidget(titleLabel);
-    layout->addStretch();
-    layout->addWidget(m_connectionStatus);
+    auto* rightSpacer = new QWidget(header);
+    layout->addWidget(leftContainer, 0, 0, Qt::AlignLeft | Qt::AlignVCenter);
+    layout->addWidget(m_connectionStatus, 0, 1, Qt::AlignCenter);
+    layout->addWidget(rightSpacer, 0, 2);
+    layout->setColumnStretch(0, 1);
+    layout->setColumnStretch(2, 1);
     return header;
 }
 
@@ -129,12 +164,23 @@ MonitorCard* DashboardPage::createMemoryCard(QWidget* parent)
     auto* card = new MonitorCard(QStringLiteral("内存"), parent);
     card->setInteractive(true);
 
+    auto* memoryLayout = new QHBoxLayout();
+    memoryLayout->setContentsMargins(0, 0, 0, 0);
+    memoryLayout->setSpacing(12);
+
+    auto* memoryLabel = new QLabel(QStringLiteral("已使用/总容量"), card);
+    memoryLabel->setObjectName(QStringLiteral("metricLabel"));
+    memoryLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
     m_memoryValueLabel = new QLabel(card);
     m_memoryValueLabel->setObjectName(QStringLiteral("memoryValue"));
     m_memoryValueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-    card->bodyLayout()->addStretch();
-    card->bodyLayout()->addWidget(m_memoryValueLabel);
+    memoryLayout->addWidget(memoryLabel);
+    memoryLayout->addStretch();
+    memoryLayout->addWidget(m_memoryValueLabel);
+
+    card->bodyLayout()->addLayout(memoryLayout);
     card->bodyLayout()->addStretch();
     connect(card, &MonitorCard::activated, this, &DashboardPage::memoryRequested);
     return card;

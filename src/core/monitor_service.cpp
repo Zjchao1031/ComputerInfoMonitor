@@ -333,6 +333,7 @@ void MonitorService::initializeHistoryBuffers()
         {history_id::kCpuPower, "W"},
         {history_id::kCpuClock, "MHz"},
         {history_id::kCpuTemperature, "°C"},
+        {history_id::kGpuPower, "W"},
         {history_id::kGpuClock, "MHz"},
         {history_id::kGpuTemperature, "°C"},
         {history_id::kGpuMemoryUsed, "MB"},
@@ -351,17 +352,18 @@ void MonitorService::initializeHistoryBuffers()
 
 void MonitorService::appendHistory(const MonitorSnapshot& snapshot)
 {
-    if (m_historyBuffers.size() != 7)
+    if (m_historyBuffers.size() != 8)
         return;
 
     const QDateTime sampleTime = snapshot.receivedAt;
     m_historyBuffers[0].append(HistoryPoint{sampleTime, snapshot.cpu.packagePower.value});
     m_historyBuffers[1].append(HistoryPoint{sampleTime, snapshot.cpu.maximumPCoreClock.value});
     m_historyBuffers[2].append(HistoryPoint{sampleTime, snapshot.cpu.coreMaximumTemperature.value});
-    m_historyBuffers[3].append(HistoryPoint{sampleTime, snapshot.gpu.coreClock.value});
-    m_historyBuffers[4].append(HistoryPoint{sampleTime, snapshot.gpu.coreTemperature.value});
-    m_historyBuffers[5].append(HistoryPoint{sampleTime, snapshot.gpu.memoryUsed.value});
-    m_historyBuffers[6].append(HistoryPoint{sampleTime, snapshot.memory.used.value});
+    m_historyBuffers[3].append(HistoryPoint{sampleTime, snapshot.gpu.packagePower.value});
+    m_historyBuffers[4].append(HistoryPoint{sampleTime, snapshot.gpu.coreClock.value});
+    m_historyBuffers[5].append(HistoryPoint{sampleTime, snapshot.gpu.coreTemperature.value});
+    m_historyBuffers[6].append(HistoryPoint{sampleTime, snapshot.gpu.memoryUsed.value});
+    m_historyBuffers[7].append(HistoryPoint{sampleTime, snapshot.memory.used.value});
 }
 
 QVector<HistorySeries> MonitorService::historySeries() const

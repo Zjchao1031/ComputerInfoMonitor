@@ -1,11 +1,7 @@
 #include "ui/theme.h"
 
-#include "core/fixed_parameters.h"
-
 #include <QLatin1String>
 #include <QStringLiteral>
-
-#include <algorithm>
 
 namespace monitor::theme
 {
@@ -74,6 +70,23 @@ QLabel#metricUnit {
     font-size: 12px;
     font-weight: 500;
 }
+QFrame#monitorCard QLabel#cardTitle {
+    font-size: 18px;
+}
+QFrame#monitorCard QLabel#hardwareName {
+    font-size: 17px;
+}
+QFrame#monitorCard QLabel#metricLabel {
+    font-size: 16px;
+}
+QFrame#monitorCard QLabel#metricValue {
+    font-size: 24px;
+    font-weight: 700;
+}
+QFrame#monitorCard QLabel#metricUnit {
+    font-size: 14px;
+    font-weight: 600;
+}
 QLabel#memoryValue {
     color: @textPrimary;
     font-size: 26px;
@@ -99,8 +112,27 @@ QLabel#powerUnit {
     font-weight: 600;
 }
 QLabel#connectionText {
+    color: @textPrimary;
     font-size: 15px;
     font-weight: 600;
+}
+QLabel#connectionDot {
+    border-radius: 6px;
+}
+QLabel#connectionDot[connectionTone="starting"] {
+    background-color: @accentCyan;
+}
+QLabel#connectionDot[connectionTone="online"] {
+    background-color: @online;
+}
+QLabel#connectionDot[connectionTone="warning"] {
+    background-color: @delayed;
+}
+QLabel#connectionDot[connectionTone="critical"] {
+    background-color: @offline;
+}
+QLabel#connectionDot[connectionTone="unavailable"] {
+    background-color: @textSecondary;
 }
 QLabel#lastUpdated {
     color: @textSecondary;
@@ -169,6 +201,9 @@ QTreeWidget#sensorTree QScrollBar::sub-line:vertical {
     result.replace(QLatin1String("@textSecondary"), QLatin1String(kTextSecondary));
     result.replace(QLatin1String("@accentYellow"), QLatin1String(kAccentYellow));
     result.replace(QLatin1String("@accentCyan"), QLatin1String(kAccentCyan));
+    result.replace(QLatin1String("@online"), QLatin1String(kOnline));
+    result.replace(QLatin1String("@delayed"), QLatin1String(kDelayed));
+    result.replace(QLatin1String("@offline"), QLatin1String(kOffline));
     return result;
 }
 
@@ -213,19 +248,6 @@ QColor connectionStateColor(ConnectionState state)
     }
 
     return QColor(kTextSecondary);
-}
-
-QColor temperatureColor(const MetricValue& temperature)
-{
-    if (!temperature.value.has_value())
-        return QColor(kTextSecondary);
-
-    const double value = *temperature.value;
-    if (value < fixed::kTemperatureWarningCelsius)
-        return QColor(kOnline);
-    if (value <= fixed::kTemperatureHighCelsius)
-        return QColor(kDelayed);
-    return QColor(kOffline);
 }
 
 } // namespace monitor::theme

@@ -4,7 +4,6 @@
 
 #include <QWidget>
 
-class QColor;
 class QLabel;
 
 namespace monitor
@@ -16,8 +15,6 @@ public:
     explicit MetricField(const QString& label, QWidget* parent = nullptr);
 
     void setValue(const MetricValue& metric, int decimalPlaces = 1);
-    void setValueColor(const QColor& color);
-    void resetValueColor();
 
 private:
     QLabel* m_valueLabel{nullptr};

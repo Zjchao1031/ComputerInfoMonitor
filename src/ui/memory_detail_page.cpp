@@ -42,25 +42,19 @@ void MemoryDetailPage::setSnapshot(const MemorySnapshot& snapshot)
 {
     m_snapshot = snapshot;
     m_memoryValueLabel->setText(formatMemoryValue(snapshot));
-    updateChart();
-}
 
-void MemoryDetailPage::setHistorySeries(const QVector<HistorySeries>& histories)
-{
-    m_histories = histories;
-    updateChart();
-}
-
-void MemoryDetailPage::updateChart()
-{
-    const HistorySeries* history = findHistorySeries(m_histories, history_id::kMemoryUsed);
-    if (history != nullptr)
+    if (!m_totalMemoryCapacity.has_value() && snapshot.total.value.has_value() && std::isfinite(*snapshot.total.value) && *snapshot.total.value > 0.0)
     {
-        m_memoryChart->setData(*history, m_snapshot.used);
-        return;
+        m_totalMemoryCapacity = *snapshot.total.value;
+        m_memoryChart->setFixedRange(0.0, *m_totalMemoryCapacity);
     }
+}
 
-    m_memoryChart->setData(HistorySeries{}, m_snapshot.used);
+void MemoryDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)
+{
+    const HistorySeries* history = findHistorySeries(histories, history_id::kMemoryUsed);
+    if (history != nullptr)
+        m_memoryChart->appendData(*history, m_snapshot.used);
 }
 
 QString MemoryDetailPage::formatMemoryValue(const MemorySnapshot& snapshot) const

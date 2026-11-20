@@ -22,7 +22,6 @@ inline constexpr const char* kOffline = "#FF5C6C";
 [[nodiscard]] QString styleSheet();
 [[nodiscard]] QString connectionStateText(ConnectionState state);
 [[nodiscard]] QColor connectionStateColor(ConnectionState state);
-[[nodiscard]] QColor temperatureColor(const MetricValue& temperature);
 
 } // namespace monitor::theme
 

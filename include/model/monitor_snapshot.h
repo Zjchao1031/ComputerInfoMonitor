@@ -71,6 +71,7 @@ struct GpuSnapshot
     MetricValue coreClock;
     MetricValue coreTemperature;
     MetricValue memoryUsed;
+    MetricValue memoryTotal;
 };
 
 struct MemorySnapshot

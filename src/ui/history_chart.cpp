@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
+#include <QShowEvent>
 #include <QStringLiteral>
 
 #include <algorithm>
@@ -41,19 +42,105 @@ HistoryChart::HistoryChart(const QString& title, const QColor& lineColor, int de
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
-void HistoryChart::setData(const HistorySeries& history, const MetricValue& current)
+void HistoryChart::appendData(const HistorySeries& history, const MetricValue& current)
 {
-    m_points = history.points;
     m_current = current;
     m_unit = history.unit.isEmpty() ? current.unit : history.unit;
     m_windowSeconds = history.windowSeconds > 0 ? history.windowSeconds : 60;
     m_sampleIntervalMs = history.sampleIntervalMs > 0 ? history.sampleIntervalMs : 1000;
-    update();
+
+    QDateTime latestSampleTime;
+    for (auto iterator = m_points.crbegin(); iterator != m_points.crend(); ++iterator)
+    {
+        if (!iterator->sampleTime.isValid())
+            continue;
+
+        latestSampleTime = iterator->sampleTime;
+        break;
+    }
+
+    const qint64 sampleIntervalMilliseconds = std::max<qint64>(1, m_sampleIntervalMs);
+    const qint64 maximumContinuousGapMilliseconds = sampleIntervalMilliseconds * 3 / 2;
+    for (const HistoryPoint& point : history.points)
+    {
+        if (!point.sampleTime.isValid())
+            continue;
+
+        qint64 logicalMilliseconds = point.sampleTime.toMSecsSinceEpoch() + m_timestampOffsetMs;
+        if (latestSampleTime.isValid())
+        {
+            const qint64 latestMilliseconds = latestSampleTime.toMSecsSinceEpoch();
+            const qint64 gapMilliseconds = logicalMilliseconds - latestMilliseconds;
+            if (gapMilliseconds <= 0)
+                continue;
+
+            // 页面隐藏期间不接收采样点，恢复绘制时压缩时间间隔，使曲线从上次位置连续延伸。
+            if (gapMilliseconds > maximumContinuousGapMilliseconds)
+            {
+                m_timestampOffsetMs -= gapMilliseconds - sampleIntervalMilliseconds;
+                logicalMilliseconds = point.sampleTime.toMSecsSinceEpoch() + m_timestampOffsetMs;
+            }
+        }
+
+        HistoryPoint logicalPoint = point;
+        logicalPoint.sampleTime = point.sampleTime.addMSecs(m_timestampOffsetMs);
+        m_points.append(logicalPoint);
+        latestSampleTime = logicalPoint.sampleTime;
+    }
+
+    trimPoints();
+
+    if (isVisible())
+        update();
+}
+
+void HistoryChart::setFixedRange(double minimum, double maximum)
+{
+    if (!std::isfinite(minimum) || !std::isfinite(maximum) || minimum >= maximum)
+        return;
+
+    m_fixedRange = AxisRange{minimum, maximum};
+    if (isVisible())
+        update();
+}
+
+void HistoryChart::trimPoints()
+{
+    QDateTime latestSampleTime;
+    for (auto iterator = m_points.crbegin(); iterator != m_points.crend(); ++iterator)
+    {
+        if (!iterator->sampleTime.isValid())
+            continue;
+
+        latestSampleTime = iterator->sampleTime;
+        break;
+    }
+
+    if (!latestSampleTime.isValid())
+    {
+        m_points.clear();
+        return;
+    }
+
+    const QDateTime windowStartTime = latestSampleTime.addSecs(-m_windowSeconds);
+    int removeCount = 0;
+    for (const HistoryPoint& point : m_points)
+    {
+        if (point.sampleTime.isValid() && point.sampleTime >= windowStartTime)
+            break;
+
+        ++removeCount;
+    }
+
+    if (removeCount > 0)
+        m_points.remove(0, removeCount);
 }
 
 void HistoryChart::paintEvent(QPaintEvent* event)
 {
     QWidget::paintEvent(event);
+    if (!isVisible())
+        return;
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -69,7 +156,7 @@ void HistoryChart::paintEvent(QPaintEvent* event)
     painter.setPen(QColor(theme::kAccentYellow));
     painter.drawText(QRectF(static_cast<qreal>(width()) * 0.45, 0.0, static_cast<qreal>(width()) * 0.55, 18.0), Qt::AlignRight | Qt::AlignVCenter, currentText);
 
-    const QRectF plotRect(44.0, 22.0, static_cast<qreal>(width()) - 52.0, static_cast<qreal>(height()) - 43.0);
+    const QRectF plotRect(44.0, 22.0, static_cast<qreal>(width()) - 52.0, static_cast<qreal>(height()) - 27.0);
     if (plotRect.width() <= 1.0 || plotRect.height() <= 1.0)
         return;
 
@@ -86,30 +173,28 @@ void HistoryChart::paintEvent(QPaintEvent* event)
         lastTime = point.sampleTime;
     }
 
-    if (!firstTime.isValid() || !lastTime.isValid())
+    qint64 startMilliseconds = 0;
+    qint64 endMilliseconds = 1;
+    if (firstTime.isValid() && lastTime.isValid())
     {
-        painter.setPen(QColor(theme::kTextSecondary));
-        painter.drawText(plotRect, Qt::AlignCenter, QStringLiteral("暂无历史数据"));
-        return;
+        QDateTime visibleStartTime = firstTime;
+        const qint64 windowMilliseconds = static_cast<qint64>(m_windowSeconds) * 1000;
+        if (windowMilliseconds > 0)
+        {
+            const QDateTime windowStartTime = lastTime.addMSecs(-windowMilliseconds);
+            if (windowStartTime > visibleStartTime)
+                visibleStartTime = windowStartTime;
+        }
+
+        startMilliseconds = visibleStartTime.toMSecsSinceEpoch();
+        endMilliseconds = lastTime.toMSecsSinceEpoch();
+        if (endMilliseconds <= startMilliseconds)
+            endMilliseconds = startMilliseconds + 1000;
     }
 
-    QDateTime visibleStartTime = firstTime;
-    const qint64 windowMilliseconds = static_cast<qint64>(m_windowSeconds) * 1000;
-    if (windowMilliseconds > 0)
-    {
-        const QDateTime windowStartTime = lastTime.addMSecs(-windowMilliseconds);
-        if (windowStartTime > visibleStartTime)
-            visibleStartTime = windowStartTime;
-    }
-
-    const qint64 startMilliseconds = visibleStartTime.toMSecsSinceEpoch();
-    qint64 endMilliseconds = lastTime.toMSecsSinceEpoch();
-    if (endMilliseconds <= startMilliseconds)
-        endMilliseconds = startMilliseconds + 1000;
-
-    bool hasAnyValue = false;
-    double minimumValue = 0.0;
-    double maximumValue = 0.0;
+    bool hasVisibleValue = false;
+    double dataMinimumValue = 0.0;
+    double dataMaximumValue = 0.0;
     for (const HistoryPoint& point : m_points)
     {
         if (!hasFiniteValue(point.value) || !point.sampleTime.isValid())
@@ -120,17 +205,46 @@ void HistoryChart::paintEvent(QPaintEvent* event)
             continue;
 
         const double value = *point.value;
-        if (!hasAnyValue)
+        if (!hasVisibleValue)
         {
-            minimumValue = value;
-            maximumValue = value;
-            hasAnyValue = true;
+            dataMinimumValue = value;
+            dataMaximumValue = value;
+            hasVisibleValue = true;
         }
         else
         {
-            minimumValue = std::min(minimumValue, value);
-            maximumValue = std::max(maximumValue, value);
+            dataMinimumValue = std::min(dataMinimumValue, value);
+            dataMaximumValue = std::max(dataMaximumValue, value);
         }
+    }
+
+    bool hasAxisRange = false;
+    double minimumValue = 0.0;
+    double maximumValue = 0.0;
+    if (m_fixedRange.has_value())
+    {
+        minimumValue = m_fixedRange->minimum;
+        maximumValue = m_fixedRange->maximum;
+        hasAxisRange = true;
+    }
+    else if (hasVisibleValue)
+    {
+        minimumValue = dataMinimumValue;
+        maximumValue = dataMaximumValue;
+        const double range = maximumValue - minimumValue;
+        if (range <= std::numeric_limits<double>::epsilon())
+        {
+            const double padding = std::max(1.0, std::abs(maximumValue) * 0.05);
+            minimumValue -= padding;
+            maximumValue += padding;
+        }
+        else
+        {
+            minimumValue -= range * 0.08;
+            maximumValue += range * 0.08;
+        }
+
+        hasAxisRange = true;
     }
 
     QFont axisFont = font();
@@ -144,36 +258,19 @@ void HistoryChart::paintEvent(QPaintEvent* event)
         painter.drawLine(QPointF(plotRect.left(), y), QPointF(plotRect.right(), y));
     }
 
-    if (!hasAnyValue)
+    if (hasAxisRange)
     {
         painter.setPen(QColor(theme::kTextSecondary));
-        painter.drawText(plotRect, Qt::AlignCenter, QStringLiteral("暂无历史数据"));
+        const double middleValue = (minimumValue + maximumValue) / 2.0;
+        painter.drawText(QRectF(0.0, plotRect.top() - 8.0, 40.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, formatValue(maximumValue, m_decimalPlaces));
+        painter.drawText(QRectF(0.0, plotRect.center().y() - 8.0, 40.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, formatValue(middleValue, m_decimalPlaces));
+        painter.drawText(QRectF(0.0, plotRect.bottom() - 8.0, 40.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, formatValue(minimumValue, m_decimalPlaces));
+    }
+
+    if (!firstTime.isValid() || !lastTime.isValid() || !hasAxisRange)
         return;
-    }
 
-    double range = maximumValue - minimumValue;
-    if (range <= std::numeric_limits<double>::epsilon())
-    {
-        const double padding = std::max(1.0, std::abs(maximumValue) * 0.05);
-        minimumValue -= padding;
-        maximumValue += padding;
-        range = maximumValue - minimumValue;
-    }
-    else
-    {
-        minimumValue -= range * 0.08;
-        maximumValue += range * 0.08;
-        range = maximumValue - minimumValue;
-    }
-
-    painter.setPen(QColor(theme::kTextSecondary));
-    painter.drawText(QRectF(0.0, plotRect.top() - 8.0, 40.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, formatValue(maximumValue, m_decimalPlaces));
-    painter.drawText(QRectF(0.0, plotRect.center().y() - 8.0, 40.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, formatValue((minimumValue + maximumValue) / 2.0, m_decimalPlaces));
-    painter.drawText(QRectF(0.0, plotRect.bottom() - 8.0, 40.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, formatValue(minimumValue, m_decimalPlaces));
-
-    painter.drawText(QRectF(plotRect.left(), plotRect.bottom() + 2.0, plotRect.width() / 2.0, 16.0), Qt::AlignLeft | Qt::AlignVCenter, visibleStartTime.toString(QStringLiteral("HH:mm:ss")));
-    painter.drawText(QRectF(plotRect.center().x(), plotRect.bottom() + 2.0, plotRect.width() / 2.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, lastTime.toString(QStringLiteral("HH:mm:ss")));
-
+    const double range = maximumValue - minimumValue;
     QPainterPath path;
     bool previousPointValid = false;
     qint64 previousSampleMilliseconds = 0;
@@ -194,7 +291,8 @@ void HistoryChart::paintEvent(QPaintEvent* event)
             previousPointValid = false;
 
         const qreal xRatio = static_cast<qreal>(sampleMilliseconds - startMilliseconds) / static_cast<qreal>(endMilliseconds - startMilliseconds);
-        const qreal yRatio = static_cast<qreal>((maximumValue - *point.value) / range);
+        const double plottedValue = std::clamp(*point.value, minimumValue, maximumValue);
+        const qreal yRatio = static_cast<qreal>((maximumValue - plottedValue) / range);
         const QPointF position(plotRect.left() + xRatio * plotRect.width(), plotRect.top() + yRatio * plotRect.height());
 
         if (!previousPointValid)
@@ -207,6 +305,12 @@ void HistoryChart::paintEvent(QPaintEvent* event)
 
     painter.setPen(QPen(m_lineColor, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     painter.drawPath(path);
+}
+
+void HistoryChart::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+    update();
 }
 
 } // namespace monitor

@@ -47,6 +47,7 @@ private:
     MetricField* m_gpuClockField{nullptr};
     MetricField* m_gpuTemperatureField{nullptr};
     MetricField* m_gpuMemoryField{nullptr};
+    QLabel* m_lastUpdatedLabel{nullptr};
     QLabel* m_memoryValueLabel{nullptr};
     QLabel* m_totalPowerValueLabel{nullptr};
     QLabel* m_totalPowerUnitLabel{nullptr};

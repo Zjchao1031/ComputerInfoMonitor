@@ -4,6 +4,8 @@
 
 #include <QWidget>
 
+#include <optional>
+
 namespace monitor
 {
 
@@ -20,24 +22,23 @@ public:
     ~GpuDetailPage() override = default;
 
     void setSnapshot(const GpuSnapshot& snapshot);
-    void setHistorySeries(const QVector<HistorySeries>& histories);
+    void appendHistorySeries(const QVector<HistorySeries>& histories);
 
 signals:
     void backRequested();
 
 private:
-    void updateCharts();
-
     DetailHeader* m_header{nullptr};
     MetricField* m_powerField{nullptr};
     MetricField* m_clockField{nullptr};
     MetricField* m_temperatureField{nullptr};
     MetricField* m_memoryField{nullptr};
+    HistoryChart* m_powerChart{nullptr};
     HistoryChart* m_clockChart{nullptr};
     HistoryChart* m_temperatureChart{nullptr};
     HistoryChart* m_memoryChart{nullptr};
     GpuSnapshot m_snapshot;
-    QVector<HistorySeries> m_histories;
+    std::optional<double> m_totalMemoryCapacity;
 };
 
 } // namespace monitor

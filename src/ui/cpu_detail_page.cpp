@@ -21,11 +21,8 @@ void updateChart(HistoryChart& chart, const QVector<HistorySeries>& histories, c
     const HistorySeries* history = findHistorySeries(histories, identifier);
     if (history != nullptr)
     {
-        chart.setData(*history, current);
-        return;
+        chart.appendData(*history, current);
     }
-
-    chart.setData(HistorySeries{}, current);
 }
 
 } // namespace
@@ -53,6 +50,9 @@ CpuDetailPage::CpuDetailPage(QWidget* parent)
     m_powerChart = new HistoryChart(QStringLiteral("CPU Package 功耗"), QColor(theme::kAccentYellow), 1, this);
     m_clockChart = new HistoryChart(QStringLiteral("P-Core 最高频率"), QColor(theme::kAccentCyan), 1, this);
     m_temperatureChart = new HistoryChart(QStringLiteral("Core Max 温度"), QColor(theme::kOffline), 1, this);
+    m_powerChart->setFixedRange(0.0, 300.0);
+    m_clockChart->setFixedRange(2000.0, 6000.0);
+    m_temperatureChart->setFixedRange(30.0, 110.0);
     chartLayout->addWidget(m_powerChart);
     chartLayout->addWidget(m_clockChart);
     chartLayout->addWidget(m_temperatureChart);
@@ -69,20 +69,13 @@ void CpuDetailPage::setSnapshot(const CpuSnapshot& snapshot)
     m_snapshot = snapshot;
     m_header->setTitle(snapshot.name);
     m_sensorTree->setGroups(snapshot.sensorGroups);
-    updateCharts();
 }
 
-void CpuDetailPage::setHistorySeries(const QVector<HistorySeries>& histories)
+void CpuDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)
 {
-    m_histories = histories;
-    updateCharts();
-}
-
-void CpuDetailPage::updateCharts()
-{
-    updateChart(*m_powerChart, m_histories, history_id::kCpuPower, m_snapshot.packagePower);
-    updateChart(*m_clockChart, m_histories, history_id::kCpuClock, m_snapshot.maximumPCoreClock);
-    updateChart(*m_temperatureChart, m_histories, history_id::kCpuTemperature, m_snapshot.coreMaximumTemperature);
+    updateChart(*m_powerChart, histories, history_id::kCpuPower, m_snapshot.packagePower);
+    updateChart(*m_clockChart, histories, history_id::kCpuClock, m_snapshot.maximumPCoreClock);
+    updateChart(*m_temperatureChart, histories, history_id::kCpuTemperature, m_snapshot.coreMaximumTemperature);
 }
 
 } // namespace monitor

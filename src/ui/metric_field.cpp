@@ -1,8 +1,5 @@
 #include "ui/metric_field.h"
 
-#include "ui/theme.h"
-
-#include <QColor>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QSizePolicy>
@@ -46,7 +43,6 @@ void MetricField::setValue(const MetricValue& metric, int decimalPlaces)
     if (!metric.value.has_value() || !std::isfinite(*metric.value))
     {
         m_valueLabel->setText(QStringLiteral("--"));
-        resetValueColor();
     }
     else
     {
@@ -54,16 +50,6 @@ void MetricField::setValue(const MetricValue& metric, int decimalPlaces)
     }
 
     m_unitLabel->setText(metric.unit);
-}
-
-void MetricField::setValueColor(const QColor& color)
-{
-    m_valueLabel->setStyleSheet(QStringLiteral("color: %1;").arg(color.name()));
-}
-
-void MetricField::resetValueColor()
-{
-    m_valueLabel->setStyleSheet(QString::fromLatin1("color: %1;").arg(QString::fromLatin1(theme::kTextPrimary)));
 }
 
 } // namespace monitor

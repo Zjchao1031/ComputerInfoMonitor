@@ -20,21 +20,18 @@ public:
     ~CpuDetailPage() override = default;
 
     void setSnapshot(const CpuSnapshot& snapshot);
-    void setHistorySeries(const QVector<HistorySeries>& histories);
+    void appendHistorySeries(const QVector<HistorySeries>& histories);
 
 signals:
     void backRequested();
 
 private:
-    void updateCharts();
-
     DetailHeader* m_header{nullptr};
     HistoryChart* m_powerChart{nullptr};
     HistoryChart* m_clockChart{nullptr};
     HistoryChart* m_temperatureChart{nullptr};
     CpuSensorTree* m_sensorTree{nullptr};
     CpuSnapshot m_snapshot;
-    QVector<HistorySeries> m_histories;
 };
 
 } // namespace monitor

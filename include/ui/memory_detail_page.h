@@ -4,6 +4,8 @@
 
 #include <QWidget>
 
+#include <optional>
+
 class QLabel;
 
 namespace monitor
@@ -21,20 +23,19 @@ public:
     ~MemoryDetailPage() override = default;
 
     void setSnapshot(const MemorySnapshot& snapshot);
-    void setHistorySeries(const QVector<HistorySeries>& histories);
+    void appendHistorySeries(const QVector<HistorySeries>& histories);
 
 signals:
     void backRequested();
 
 private:
-    void updateChart();
     [[nodiscard]] QString formatMemoryValue(const MemorySnapshot& snapshot) const;
 
     DetailHeader* m_header{nullptr};
     QLabel* m_memoryValueLabel{nullptr};
     HistoryChart* m_memoryChart{nullptr};
     MemorySnapshot m_snapshot;
-    QVector<HistorySeries> m_histories;
+    std::optional<double> m_totalMemoryCapacity;
 };
 
 } // namespace monitor

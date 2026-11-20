@@ -10,6 +10,8 @@
 #include <QGridLayout>
 #include <QVBoxLayout>
 
+#include <cmath>
+
 namespace monitor
 {
 
@@ -21,11 +23,8 @@ void updateChart(HistoryChart& chart, const QVector<HistorySeries>& histories, c
     const HistorySeries* history = findHistorySeries(histories, identifier);
     if (history != nullptr)
     {
-        chart.setData(*history, current);
-        return;
+        chart.appendData(*history, current);
     }
-
-    chart.setData(HistorySeries{}, current);
 }
 
 } // namespace
@@ -57,9 +56,13 @@ GpuDetailPage::GpuDetailPage(QWidget* parent)
     summaryLayout->addWidget(m_memoryField, 1, 1);
     rootLayout->addLayout(summaryLayout);
 
+    m_powerChart = new HistoryChart(QStringLiteral("GPU Package 功耗"), QColor(theme::kAccentYellow), 1, this);
     m_clockChart = new HistoryChart(QStringLiteral("GPU Core 频率"), QColor(theme::kAccentCyan), 1, this);
     m_temperatureChart = new HistoryChart(QStringLiteral("GPU Core 温度"), QColor(theme::kOffline), 1, this);
     m_memoryChart = new HistoryChart(QStringLiteral("显存占用"), QColor(theme::kAccentYellow), 0, this);
+    m_powerChart->setFixedRange(0.0, 800.0);
+    m_clockChart->setFixedRange(2000.0, 4000.0);
+    rootLayout->addWidget(m_powerChart, 1);
     rootLayout->addWidget(m_clockChart, 1);
     rootLayout->addWidget(m_temperatureChart, 1);
     rootLayout->addWidget(m_memoryChart, 1);
@@ -73,20 +76,20 @@ void GpuDetailPage::setSnapshot(const GpuSnapshot& snapshot)
     m_clockField->setValue(snapshot.coreClock);
     m_temperatureField->setValue(snapshot.coreTemperature);
     m_memoryField->setValue(snapshot.memoryUsed, 0);
-    updateCharts();
+
+    if (!m_totalMemoryCapacity.has_value() && snapshot.memoryTotal.value.has_value() && std::isfinite(*snapshot.memoryTotal.value) && *snapshot.memoryTotal.value > 0.0)
+    {
+        m_totalMemoryCapacity = *snapshot.memoryTotal.value;
+        m_memoryChart->setFixedRange(0.0, *m_totalMemoryCapacity);
+    }
 }
 
-void GpuDetailPage::setHistorySeries(const QVector<HistorySeries>& histories)
+void GpuDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)
 {
-    m_histories = histories;
-    updateCharts();
-}
-
-void GpuDetailPage::updateCharts()
-{
-    updateChart(*m_clockChart, m_histories, history_id::kGpuClock, m_snapshot.coreClock);
-    updateChart(*m_temperatureChart, m_histories, history_id::kGpuTemperature, m_snapshot.coreTemperature);
-    updateChart(*m_memoryChart, m_histories, history_id::kGpuMemoryUsed, m_snapshot.memoryUsed);
+    updateChart(*m_powerChart, histories, history_id::kGpuPower, m_snapshot.packagePower);
+    updateChart(*m_clockChart, histories, history_id::kGpuClock, m_snapshot.coreClock);
+    updateChart(*m_temperatureChart, histories, history_id::kGpuTemperature, m_snapshot.coreTemperature);
+    updateChart(*m_memoryChart, histories, history_id::kGpuMemoryUsed, m_snapshot.memoryUsed);
 }
 
 } // namespace monitor

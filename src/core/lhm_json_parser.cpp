@@ -402,7 +402,14 @@ bool shouldRetainSensor(const HardwareContext& context, const QString& sensorTyp
             return name == QStringLiteral("gpu core");
 
         if (type == QStringLiteral("data"))
-            return name == QStringLiteral("gpu memory used") || name == QStringLiteral("d3d dedicated memory used");
+        {
+            return name == QStringLiteral("gpu memory used") ||
+                name == QStringLiteral("d3d dedicated memory used") ||
+                name == QStringLiteral("gpu memory available") ||
+                name == QStringLiteral("d3d dedicated memory available") ||
+                name == QStringLiteral("gpu memory total") ||
+                name == QStringLiteral("d3d dedicated memory total");
+        }
 
         return false;
     }
@@ -617,7 +624,18 @@ LhmParseResult parseLhmResponse(const QByteArray& payload)
         const SensorRecord* gpuTemperature = findExactSensor(state.sensors, state.gpuHardwareId, QStringLiteral("Temperature"), QStringLiteral("GPU Core"));
         snapshot.gpu.coreTemperature = sensorMetric(gpuTemperature, SensorDimension::Temperature, QStringLiteral("°C"));
 
-        snapshot.gpu.memoryUsed = firstAvailableSensorMetric(state.sensors, state.gpuHardwareId, QStringLiteral("Data"), {QStringLiteral("GPU Memory Used"), QStringLiteral("D3D Dedicated Memory Used")}, SensorDimension::Data, QStringLiteral("MB"));
+        MetricValue gpuMemoryUsed = firstAvailableSensorMetric(state.sensors, state.gpuHardwareId, QStringLiteral("Data"), {QStringLiteral("GPU Memory Used"), QStringLiteral("D3D Dedicated Memory Used")}, SensorDimension::Data, QStringLiteral("MB"));
+        const MetricValue gpuMemoryAvailable = firstAvailableSensorMetric(state.sensors, state.gpuHardwareId, QStringLiteral("Data"), {QStringLiteral("GPU Memory Available"), QStringLiteral("D3D Dedicated Memory Available")}, SensorDimension::Data, QStringLiteral("MB"));
+        MetricValue gpuMemoryTotal = firstAvailableSensorMetric(state.sensors, state.gpuHardwareId, QStringLiteral("Data"), {QStringLiteral("GPU Memory Total"), QStringLiteral("D3D Dedicated Memory Total")}, SensorDimension::Data, QStringLiteral("MB"));
+
+        if (!gpuMemoryUsed.value.has_value() && gpuMemoryTotal.value.has_value() && gpuMemoryAvailable.value.has_value())
+            gpuMemoryUsed = MetricValue{*gpuMemoryTotal.value - *gpuMemoryAvailable.value, QStringLiteral("MB")};
+
+        if (!gpuMemoryTotal.value.has_value() && gpuMemoryUsed.value.has_value() && gpuMemoryAvailable.value.has_value())
+            gpuMemoryTotal = MetricValue{*gpuMemoryUsed.value + *gpuMemoryAvailable.value, QStringLiteral("MB")};
+
+        snapshot.gpu.memoryUsed = gpuMemoryUsed;
+        snapshot.gpu.memoryTotal = gpuMemoryTotal;
     }
 
     MetricValue memoryUsed = firstAvailableSensorMetric(state.sensors, state.memoryHardwareId, QStringLiteral("Data"), {QStringLiteral("Memory Used")}, SensorDimension::Data, QStringLiteral("GB"));
