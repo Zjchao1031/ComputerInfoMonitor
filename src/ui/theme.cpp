@@ -1,5 +1,6 @@
 #include "ui/theme.h"
 
+#include <QColor>
 #include <QLatin1String>
 #include <QStringLiteral>
 
@@ -195,8 +196,6 @@ QTreeWidget#sensorTree QScrollBar::sub-line:vertical {
 )");
 
     result.replace(QLatin1String("@background"), QLatin1String(kBackground));
-    result.replace(QLatin1String("@card"), QLatin1String(kCard));
-    result.replace(QLatin1String("@border"), QLatin1String(kBorder));
     result.replace(QLatin1String("@textPrimary"), QLatin1String(kTextPrimary));
     result.replace(QLatin1String("@textSecondary"), QLatin1String(kTextSecondary));
     result.replace(QLatin1String("@accentYellow"), QLatin1String(kAccentYellow));
@@ -228,26 +227,6 @@ QString connectionStateText(ConnectionState state)
     }
 
     return QStringLiteral("状态未知");
-}
-
-QColor connectionStateColor(ConnectionState state)
-{
-    switch (state)
-    {
-    case ConnectionState::Starting:
-        return QColor(kAccentCyan);
-    case ConnectionState::Online:
-        return QColor(kOnline);
-    case ConnectionState::Delayed:
-    case ConnectionState::ParseError:
-        return QColor(kDelayed);
-    case ConnectionState::Offline:
-    case ConnectionState::NetworkUnavailable:
-    case ConnectionState::ServiceUnavailable:
-        return QColor(kOffline);
-    }
-
-    return QColor(kTextSecondary);
 }
 
 } // namespace monitor::theme

@@ -15,20 +15,6 @@
 namespace monitor
 {
 
-namespace
-{
-
-void updateChart(HistoryChart& chart, const QVector<HistorySeries>& histories, const char* identifier, const MetricValue& current)
-{
-    const HistorySeries* history = findHistorySeries(histories, identifier);
-    if (history != nullptr)
-    {
-        chart.appendData(*history, current);
-    }
-}
-
-} // namespace
-
 GpuDetailPage::GpuDetailPage(QWidget* parent)
     : QWidget(parent)
 {
@@ -86,10 +72,10 @@ void GpuDetailPage::setSnapshot(const GpuSnapshot& snapshot)
 
 void GpuDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)
 {
-    updateChart(*m_powerChart, histories, history_id::kGpuPower, m_snapshot.packagePower);
-    updateChart(*m_clockChart, histories, history_id::kGpuClock, m_snapshot.coreClock);
-    updateChart(*m_temperatureChart, histories, history_id::kGpuTemperature, m_snapshot.coreTemperature);
-    updateChart(*m_memoryChart, histories, history_id::kGpuMemoryUsed, m_snapshot.memoryUsed);
+    m_powerChart->appendData(histories, history_id::kGpuPower, m_snapshot.packagePower);
+    m_clockChart->appendData(histories, history_id::kGpuClock, m_snapshot.coreClock);
+    m_temperatureChart->appendData(histories, history_id::kGpuTemperature, m_snapshot.coreTemperature);
+    m_memoryChart->appendData(histories, history_id::kGpuMemoryUsed, m_snapshot.memoryUsed);
 }
 
 } // namespace monitor

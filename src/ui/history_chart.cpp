@@ -1,5 +1,6 @@
 #include "ui/history_chart.h"
 
+#include "model/history_series_ids.h"
 #include "ui/theme.h"
 
 #include <QDateTime>
@@ -30,6 +31,17 @@ QString formatValue(double value, int decimalPlaces)
     return QString::number(value, 'f', decimalPlaces);
 }
 
+QDateTime latestValidSampleTime(const QVector<HistoryPoint>& points)
+{
+    for (auto iterator = points.crbegin(); iterator != points.crend(); ++iterator)
+    {
+        if (iterator->sampleTime.isValid())
+            return iterator->sampleTime;
+    }
+
+    return {};
+}
+
 } // namespace
 
 HistoryChart::HistoryChart(const QString& title, const QColor& lineColor, int decimalPlaces, QWidget* parent)
@@ -49,15 +61,7 @@ void HistoryChart::appendData(const HistorySeries& history, const MetricValue& c
     m_windowSeconds = history.windowSeconds > 0 ? history.windowSeconds : 60;
     m_sampleIntervalMs = history.sampleIntervalMs > 0 ? history.sampleIntervalMs : 1000;
 
-    QDateTime latestSampleTime;
-    for (auto iterator = m_points.crbegin(); iterator != m_points.crend(); ++iterator)
-    {
-        if (!iterator->sampleTime.isValid())
-            continue;
-
-        latestSampleTime = iterator->sampleTime;
-        break;
-    }
+    QDateTime latestSampleTime = latestValidSampleTime(m_points);
 
     const qint64 sampleIntervalMilliseconds = std::max<qint64>(1, m_sampleIntervalMs);
     const qint64 maximumContinuousGapMilliseconds = sampleIntervalMilliseconds * 3 / 2;
@@ -94,6 +98,13 @@ void HistoryChart::appendData(const HistorySeries& history, const MetricValue& c
         update();
 }
 
+void HistoryChart::appendData(const QVector<HistorySeries>& histories, const char* identifier, const MetricValue& current)
+{
+    const HistorySeries* history = findHistorySeries(histories, identifier);
+    if (history != nullptr)
+        appendData(*history, current);
+}
+
 void HistoryChart::setFixedRange(double minimum, double maximum)
 {
     if (!std::isfinite(minimum) || !std::isfinite(maximum) || minimum >= maximum)
@@ -106,15 +117,7 @@ void HistoryChart::setFixedRange(double minimum, double maximum)
 
 void HistoryChart::trimPoints()
 {
-    QDateTime latestSampleTime;
-    for (auto iterator = m_points.crbegin(); iterator != m_points.crend(); ++iterator)
-    {
-        if (!iterator->sampleTime.isValid())
-            continue;
-
-        latestSampleTime = iterator->sampleTime;
-        break;
-    }
+    const QDateTime latestSampleTime = latestValidSampleTime(m_points);
 
     if (!latestSampleTime.isValid())
     {

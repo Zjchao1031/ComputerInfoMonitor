@@ -13,20 +13,6 @@
 namespace monitor
 {
 
-namespace
-{
-
-void updateChart(HistoryChart& chart, const QVector<HistorySeries>& histories, const char* identifier, const MetricValue& current)
-{
-    const HistorySeries* history = findHistorySeries(histories, identifier);
-    if (history != nullptr)
-    {
-        chart.appendData(*history, current);
-    }
-}
-
-} // namespace
-
 CpuDetailPage::CpuDetailPage(QWidget* parent)
     : QWidget(parent)
 {
@@ -73,9 +59,9 @@ void CpuDetailPage::setSnapshot(const CpuSnapshot& snapshot)
 
 void CpuDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)
 {
-    updateChart(*m_powerChart, histories, history_id::kCpuPower, m_snapshot.packagePower);
-    updateChart(*m_clockChart, histories, history_id::kCpuClock, m_snapshot.maximumPCoreClock);
-    updateChart(*m_temperatureChart, histories, history_id::kCpuTemperature, m_snapshot.coreMaximumTemperature);
+    m_powerChart->appendData(histories, history_id::kCpuPower, m_snapshot.packagePower);
+    m_clockChart->appendData(histories, history_id::kCpuClock, m_snapshot.maximumPCoreClock);
+    m_temperatureChart->appendData(histories, history_id::kCpuTemperature, m_snapshot.coreMaximumTemperature);
 }
 
 } // namespace monitor

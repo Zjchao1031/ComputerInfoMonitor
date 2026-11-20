@@ -404,29 +404,14 @@ void MonitorService::updateConnectionState()
     const int dataAgeMs = currentDataAgeMs();
     ConnectionState desiredState = ConnectionState::Starting;
 
-    if (m_hasSuccessfulSnapshot)
-    {
-        if (m_consecutiveFailures >= 5 || dataAgeMs >= fixed::kOfflineDataThresholdMs)
-            desiredState = ConnectionState::Offline;
-        else if (m_consecutiveFailures >= 3 || dataAgeMs >= fixed::kDelayedDataThresholdMs)
-            desiredState = ConnectionState::Delayed;
-        else if (m_consecutiveFailures > 0)
-            desiredState = m_lastFailureState;
-        else
-            desiredState = ConnectionState::Online;
-    }
-    else if (m_consecutiveFailures >= 5)
-    {
+    if (m_consecutiveFailures >= 5 || (m_hasSuccessfulSnapshot && dataAgeMs >= fixed::kOfflineDataThresholdMs))
         desiredState = ConnectionState::Offline;
-    }
-    else if (m_consecutiveFailures >= 3)
-    {
+    else if (m_consecutiveFailures >= 3 || (m_hasSuccessfulSnapshot && dataAgeMs >= fixed::kDelayedDataThresholdMs))
         desiredState = ConnectionState::Delayed;
-    }
     else if (m_consecutiveFailures > 0)
-    {
         desiredState = m_lastFailureState;
-    }
+    else if (m_hasSuccessfulSnapshot)
+        desiredState = ConnectionState::Online;
 
     if (desiredState == m_latestSnapshot.connectionState)
         return;

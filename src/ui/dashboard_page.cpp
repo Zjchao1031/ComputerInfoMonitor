@@ -70,7 +70,7 @@ void DashboardPage::setSnapshot(const MonitorSnapshot& snapshot)
     m_gpuTemperatureField->setValue(gpuSnapshot.coreTemperature);
     m_gpuMemoryField->setValue(gpuSnapshot.memoryUsed, 0);
 
-    m_memoryValueLabel->setText(formatMemoryValue(snapshot.memory));
+    m_memoryValueLabel->setText(formatMemoryUsage(snapshot.memory));
 
     if (snapshot.cpuGpuTotalPower.value.has_value() && std::isfinite(*snapshot.cpuGpuTotalPower.value))
         m_totalPowerValueLabel->setText(QString::number(*snapshot.cpuGpuTotalPower.value, 'f', 1));
@@ -212,17 +212,6 @@ QWidget* DashboardPage::createPowerStrip(QWidget* parent)
     layout->addWidget(m_totalPowerValueLabel);
     layout->addWidget(m_totalPowerUnitLabel);
     return powerStrip;
-}
-
-QString DashboardPage::formatMemoryValue(const MemorySnapshot& memory) const
-{
-    if (!memory.used.value.has_value() || !memory.total.value.has_value())
-        return QStringLiteral("-- / -- GB");
-
-    if (!std::isfinite(*memory.used.value) || !std::isfinite(*memory.total.value))
-        return QStringLiteral("-- / -- GB");
-
-    return QStringLiteral("%1 / %2 GB").arg(QString::number(*memory.used.value, 'f', 1), QString::number(*memory.total.value, 'f', 1));
 }
 
 } // namespace monitor

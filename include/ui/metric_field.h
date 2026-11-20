@@ -9,6 +9,8 @@ class QLabel;
 namespace monitor
 {
 
+[[nodiscard]] QString formatMemoryUsage(const MemorySnapshot& snapshot);
+
 class MetricField final : public QWidget
 {
 public:

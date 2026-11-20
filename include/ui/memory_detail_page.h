@@ -29,8 +29,6 @@ signals:
     void backRequested();
 
 private:
-    [[nodiscard]] QString formatMemoryValue(const MemorySnapshot& snapshot) const;
-
     DetailHeader* m_header{nullptr};
     QLabel* m_memoryValueLabel{nullptr};
     HistoryChart* m_memoryChart{nullptr};

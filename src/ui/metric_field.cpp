@@ -10,6 +10,17 @@
 namespace monitor
 {
 
+QString formatMemoryUsage(const MemorySnapshot& snapshot)
+{
+    if (!snapshot.used.value.has_value() || !snapshot.total.value.has_value())
+        return QStringLiteral("-- / -- GB");
+
+    if (!std::isfinite(*snapshot.used.value) || !std::isfinite(*snapshot.total.value))
+        return QStringLiteral("-- / -- GB");
+
+    return QStringLiteral("%1 / %2 GB").arg(QString::number(*snapshot.used.value, 'f', 1), QString::number(*snapshot.total.value, 'f', 1));
+}
+
 MetricField::MetricField(const QString& label, QWidget* parent)
     : QWidget(parent)
 {

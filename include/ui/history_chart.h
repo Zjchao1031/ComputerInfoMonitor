@@ -19,6 +19,7 @@ public:
     explicit HistoryChart(const QString& title, const QColor& lineColor, int decimalPlaces, QWidget* parent = nullptr);
 
     void appendData(const HistorySeries& history, const MetricValue& current);
+    void appendData(const QVector<HistorySeries>& histories, const char* identifier, const MetricValue& current);
     void setFixedRange(double minimum, double maximum);
 
 protected:

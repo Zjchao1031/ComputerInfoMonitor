@@ -34,7 +34,6 @@ private:
     [[nodiscard]] MonitorCard* createGpuCard(QWidget* parent);
     [[nodiscard]] MonitorCard* createMemoryCard(QWidget* parent);
     [[nodiscard]] QWidget* createPowerStrip(QWidget* parent);
-    [[nodiscard]] QString formatMemoryValue(const MemorySnapshot& memory) const;
 
     ConnectionStatusWidget* m_connectionStatus{nullptr};
     MonitorCard* m_cpuCard{nullptr};

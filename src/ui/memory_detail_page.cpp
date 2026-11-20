@@ -3,6 +3,7 @@
 #include "model/history_series_ids.h"
 #include "ui/detail_header.h"
 #include "ui/history_chart.h"
+#include "ui/metric_field.h"
 #include "ui/theme.h"
 
 #include <QColor>
@@ -41,7 +42,7 @@ MemoryDetailPage::MemoryDetailPage(QWidget* parent)
 void MemoryDetailPage::setSnapshot(const MemorySnapshot& snapshot)
 {
     m_snapshot = snapshot;
-    m_memoryValueLabel->setText(formatMemoryValue(snapshot));
+    m_memoryValueLabel->setText(formatMemoryUsage(snapshot));
 
     if (!m_totalMemoryCapacity.has_value() && snapshot.total.value.has_value() && std::isfinite(*snapshot.total.value) && *snapshot.total.value > 0.0)
     {
@@ -55,17 +56,6 @@ void MemoryDetailPage::appendHistorySeries(const QVector<HistorySeries>& histori
     const HistorySeries* history = findHistorySeries(histories, history_id::kMemoryUsed);
     if (history != nullptr)
         m_memoryChart->appendData(*history, m_snapshot.used);
-}
-
-QString MemoryDetailPage::formatMemoryValue(const MemorySnapshot& snapshot) const
-{
-    if (!snapshot.used.value.has_value() || !snapshot.total.value.has_value())
-        return QStringLiteral("-- / -- GB");
-
-    if (!std::isfinite(*snapshot.used.value) || !std::isfinite(*snapshot.total.value))
-        return QStringLiteral("-- / -- GB");
-
-    return QStringLiteral("%1 / %2 GB").arg(QString::number(*snapshot.used.value, 'f', 1), QString::number(*snapshot.total.value, 'f', 1));
 }
 
 } // namespace monitor
