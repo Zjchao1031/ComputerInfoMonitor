@@ -2,19 +2,28 @@
 
 #include "ui/theme.h"
 
+#include <QAbstractListModel>
 #include <QColor>
+#include <QEvent>
 #include <QFont>
-#include <QHash>
-#include <QHeaderView>
+#include <QFontMetrics>
+#include <QFrame>
+#include <QModelIndex>
+#include <QMouseEvent>
+#include <QPainter>
 #include <QRegularExpression>
-#include <QScroller>
+#include <QScrollBar>
 #include <QSet>
-#include <QStringList>
-#include <QTreeWidgetItem>
+#include <QSize>
+#include <QStringLiteral>
+#include <QStyledItemDelegate>
+#include <QStyleOptionViewItem>
+#include <QTimer>
+#include <QVariant>
 
 #include <algorithm>
 #include <cmath>
-#include <memory>
+#include <utility>
 
 namespace monitor
 {
@@ -22,7 +31,11 @@ namespace monitor
 namespace
 {
 
+constexpr int kRowHeight = 20;
 constexpr int kValueColumnWidth = 76;
+constexpr int kHorizontalPadding = 4;
+constexpr int kSensorIndent = 14;
+constexpr int kDragPixelsPerRow = 10;
 
 bool shouldDisplaySensor(const SensorReading& sensor)
 {
@@ -91,209 +104,326 @@ QString sensorValueText(const SensorReading& sensor)
 
 } // namespace
 
+class CpuSensorModel final : public QAbstractListModel
+{
+public:
+    enum RowRole
+    {
+        NameRole = Qt::UserRole + 1,
+        ValueRole,
+        IsGroupRole,
+        AvailableRole
+    };
+
+private:
+    struct Row
+    {
+        QString key;
+        QString name;
+        QString valueText;
+        bool isGroup{false};
+        bool available{false};
+    };
+
+public:
+    explicit CpuSensorModel(QObject* parent = nullptr)
+        : QAbstractListModel(parent)
+    {
+    }
+
+    [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override
+    {
+        return parent.isValid() ? 0 : static_cast<int>(m_rows.size());
+    }
+
+    [[nodiscard]] QVariant data(const QModelIndex& index, int role) const override
+    {
+        const int count = static_cast<int>(m_rows.size());
+        if (!index.isValid() || index.row() < 0 || index.row() >= count)
+            return {};
+
+        const Row& row = m_rows.at(index.row());
+        switch (role)
+        {
+        case Qt::DisplayRole:
+        case NameRole:
+            return row.name;
+        case ValueRole:
+            return row.valueText;
+        case IsGroupRole:
+            return row.isGroup;
+        case AvailableRole:
+            return row.available;
+        default:
+            return {};
+        }
+    }
+
+    [[nodiscard]] Qt::ItemFlags flags(const QModelIndex& index) const override
+    {
+        if (!index.isValid())
+            return Qt::NoItemFlags;
+
+        return Qt::ItemIsEnabled;
+    }
+
+    [[nodiscard]] bool setGroups(const QVector<SensorGroup>& groups)
+    {
+        QVector<Row> rows;
+        rows.reserve(m_rows.size());
+
+        for (const SensorGroup& group : groups)
+        {
+            QVector<const SensorReading*> visibleSensors;
+            visibleSensors.reserve(group.sensors.size());
+            for (const SensorReading& sensor : group.sensors)
+            {
+                if (shouldDisplaySensor(sensor))
+                    visibleSensors.append(&sensor);
+            }
+
+            if (group.category == SensorCategory::Temperature)
+            {
+                std::stable_sort(visibleSensors.begin(), visibleSensors.end(), [](const SensorReading* left, const SensorReading* right)
+                {
+                    return temperatureSensorLessThan(*left, *right);
+                });
+            }
+
+            if (visibleSensors.isEmpty())
+                continue;
+
+            const QString currentGroupKey = groupKey(group.category, group.title);
+            rows.append(Row{
+                currentGroupKey,
+                QStringLiteral("%1 (%2)").arg(group.title).arg(visibleSensors.size()),
+                {},
+                true,
+                true
+            });
+
+            for (const SensorReading* sensor : visibleSensors)
+            {
+                rows.append(Row{
+                    currentGroupKey + QChar(0x1f) + sensor->sensorId,
+                    sensor->name,
+                    sensorValueText(*sensor),
+                    false,
+                    sensor->current.isAvailable()
+                });
+            }
+        }
+
+        if (!topologyMatches(rows))
+        {
+            beginResetModel();
+            m_rows = std::move(rows);
+            endResetModel();
+            return true;
+        }
+
+        bool changed = false;
+        const int rowCount = static_cast<int>(m_rows.size());
+        for (int index = 0; index < rowCount; ++index)
+        {
+            Row& current = m_rows[index];
+            const Row& desired = rows.at(index);
+            if (current.name == desired.name && current.valueText == desired.valueText && current.available == desired.available)
+                continue;
+
+            current.name = desired.name;
+            current.valueText = desired.valueText;
+            current.available = desired.available;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            emit dataChanged(index(0), index(static_cast<int>(m_rows.size()) - 1), {NameRole, ValueRole, AvailableRole});
+        }
+
+        return false;
+    }
+
+private:
+    [[nodiscard]] bool topologyMatches(const QVector<Row>& rows) const noexcept
+    {
+        if (m_rows.size() != rows.size())
+            return false;
+
+        const int rowCount = static_cast<int>(m_rows.size());
+        for (int index = 0; index < rowCount; ++index)
+        {
+            if (m_rows.at(index).key != rows.at(index).key || m_rows.at(index).isGroup != rows.at(index).isGroup)
+                return false;
+        }
+
+        return true;
+    }
+
+    QVector<Row> m_rows;
+};
+
+namespace
+{
+
+class SensorRowDelegate final : public QStyledItemDelegate
+{
+public:
+    explicit SensorRowDelegate(QObject* parent = nullptr)
+        : QStyledItemDelegate(parent)
+    {
+    }
+
+    [[nodiscard]] QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        Q_UNUSED(option)
+        Q_UNUSED(index)
+        return QSize(0, kRowHeight);
+    }
+
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        if (painter == nullptr || !index.isValid())
+            return;
+
+        const bool isGroup = index.data(CpuSensorModel::IsGroupRole).toBool();
+        const bool available = index.data(CpuSensorModel::AvailableRole).toBool();
+
+        QFont rowFont = option.font;
+        QColor nameColor = QColor(theme::kTextPrimary);
+        if (isGroup)
+        {
+            rowFont.setWeight(QFont::DemiBold);
+            nameColor = QColor(theme::kAccentCyan);
+        }
+
+        const QRectF contentRect = option.rect.adjusted(kHorizontalPadding, 0, -kHorizontalPadding, 0);
+        const int valueWidth = isGroup ? 0 : kValueColumnWidth;
+        QRectF nameRect = contentRect;
+        if (!isGroup)
+            nameRect.adjust(kSensorIndent, 0, -valueWidth, 0);
+
+        const QFontMetricsF fontMetrics(rowFont);
+        const QString name = index.data(CpuSensorModel::NameRole).toString();
+        const QString elidedName = fontMetrics.elidedText(name, Qt::ElideRight, nameRect.width());
+
+        painter->save();
+        painter->setFont(rowFont);
+        painter->setPen(nameColor);
+        painter->drawText(nameRect, Qt::AlignLeft | Qt::AlignVCenter, elidedName);
+
+        if (!isGroup)
+        {
+            const QString valueText = index.data(CpuSensorModel::ValueRole).toString();
+            const QString elidedValue = fontMetrics.elidedText(valueText, Qt::ElideLeft, valueWidth);
+            const QRectF valueRect(contentRect.right() - valueWidth + 1.0, contentRect.top(), valueWidth, contentRect.height());
+            painter->setPen(QColor(available ? theme::kTextSecondary : theme::kOffline));
+            painter->drawText(valueRect, Qt::AlignRight | Qt::AlignVCenter, elidedValue);
+        }
+
+        painter->restore();
+    }
+};
+
+} // namespace
+
 CpuSensorTree::CpuSensorTree(QWidget* parent)
-    : QTreeWidget(parent)
+    : QListView(parent)
+    , m_model(new CpuSensorModel(this))
 {
     setObjectName(QStringLiteral("sensorTree"));
-    setColumnCount(2);
-    setHeaderHidden(true);
-    setRootIsDecorated(true);
-    setIndentation(14);
-    setUniformRowHeights(true);
+    setModel(m_model);
+    setItemDelegate(new SensorRowDelegate(this));
+
+    setViewMode(QListView::ListMode);
+    setFlow(QListView::TopToBottom);
+    setWrapping(false);
+    setMovement(QListView::Static);
+    setResizeMode(QListView::Adjust);
+    setLayoutMode(QListView::Batched);
+    setBatchSize(100);
+    setSpacing(0);
+    setUniformItemSizes(true);
+    setWordWrap(false);
+    setTextElideMode(Qt::ElideRight);
     setAlternatingRowColors(false);
     setFocusPolicy(Qt::NoFocus);
     setSelectionMode(QAbstractItemView::NoSelection);
+    setEditTriggers(QAbstractItemView::NoEditTriggers);
+    setDragEnabled(false);
+    setAcceptDrops(false);
+    setFrameShape(QFrame::NoFrame);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    setWordWrap(false);
-    setTextElideMode(Qt::ElideRight);
-    setExpandsOnDoubleClick(true);
+    setVerticalScrollMode(QAbstractItemView::ScrollPerItem);
+    viewport()->setAutoFillBackground(false);
 
-    // tslib 将触摸转换为左键拖动，列表需要按鼠标拖动手势接管平移。
-    QScroller::grabGesture(viewport(), QScroller::LeftMouseButtonGesture);
+    viewport()->installEventFilter(this);
+}
 
-    header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    header()->setSectionResizeMode(1, QHeaderView::Fixed);
-    header()->resizeSection(1, kValueColumnWidth);
-    header()->setStretchLastSection(false);
+bool CpuSensorTree::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched != viewport() || event == nullptr)
+        return QListView::eventFilter(watched, event);
+
+    if (event->type() == QEvent::MouseButtonPress)
+    {
+        const auto* mouseEvent = static_cast<const QMouseEvent*>(event);
+        if (mouseEvent->button() != Qt::LeftButton)
+            return QListView::eventFilter(watched, event);
+
+        m_leftButtonPressed = true;
+        m_lastMouseY = mouseEvent->position().y();
+        m_pendingDragPixels = 0.0;
+        return true;
+    }
+
+    if (event->type() == QEvent::MouseMove && m_leftButtonPressed)
+    {
+        const auto* mouseEvent = static_cast<const QMouseEvent*>(event);
+        const qreal currentY = mouseEvent->position().y();
+        m_pendingDragPixels += currentY - m_lastMouseY;
+        m_lastMouseY = currentY;
+
+        const int rows = static_cast<int>(m_pendingDragPixels / static_cast<qreal>(kDragPixelsPerRow));
+        if (rows != 0)
+        {
+            QScrollBar* scrollBar = verticalScrollBar();
+            const int newValue = std::clamp(scrollBar->value() - rows, scrollBar->minimum(), scrollBar->maximum());
+            scrollBar->setValue(newValue);
+            m_pendingDragPixels -= rows * kDragPixelsPerRow;
+        }
+
+        return true;
+    }
+
+    if (event->type() == QEvent::MouseButtonRelease && m_leftButtonPressed)
+    {
+        const auto* mouseEvent = static_cast<const QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton)
+        {
+            m_leftButtonPressed = false;
+            m_lastMouseY = 0.0;
+            m_pendingDragPixels = 0.0;
+            return true;
+        }
+    }
+
+    return QListView::eventFilter(watched, event);
 }
 
 void CpuSensorTree::setGroups(const QVector<SensorGroup>& groups)
 {
-    QSet<QString> usedGroupKeys;
-    int visibleGroupIndex = 0;
-    for (const SensorGroup& group : groups)
+    QScrollBar* scrollBar = verticalScrollBar();
+    const int scrollPosition = scrollBar->value();
+    if (!m_model->setGroups(groups))
+        return;
+
+    QTimer::singleShot(0, this, [scrollBar, scrollPosition]()
     {
-        QVector<const SensorReading*> visibleSensors;
-        visibleSensors.reserve(group.sensors.size());
-        for (const SensorReading& sensor : group.sensors)
-        {
-            if (shouldDisplaySensor(sensor))
-                visibleSensors.append(&sensor);
-        }
-
-        if (group.category == SensorCategory::Temperature)
-        {
-            std::stable_sort(visibleSensors.begin(), visibleSensors.end(), [](const SensorReading* left, const SensorReading* right)
-            {
-                return temperatureSensorLessThan(*left, *right);
-            });
-        }
-
-        if (visibleSensors.isEmpty())
-            continue;
-
-        const QString currentGroupKey = groupKey(group.category, group.title);
-        usedGroupKeys.insert(currentGroupKey);
-        GroupNodeState& groupState = ensureGroup(currentGroupKey, group.title, visibleSensors.size(), visibleGroupIndex);
-        const QString groupText = QStringLiteral("%1 (%2)").arg(group.title).arg(visibleSensors.size());
-        if (groupState.item->text(0) != groupText)
-            groupState.item->setText(0, groupText);
-
-        QSet<QString> usedSensorIds;
-        int visibleSensorIndex = 0;
-        for (const SensorReading* sensor : visibleSensors)
-        {
-            usedSensorIds.insert(sensor->sensorId);
-            SensorNodeState& sensorState = ensureSensor(groupState, *sensor, visibleSensorIndex);
-            updateSensor(sensorState, *sensor);
-            ++visibleSensorIndex;
-        }
-
-        removeStaleSensors(groupState, usedSensorIds);
-        ++visibleGroupIndex;
-    }
-
-    removeStaleGroups(usedGroupKeys);
-}
-
-CpuSensorTree::GroupNodeState& CpuSensorTree::ensureGroup(const QString& key, const QString& title, int sensorCount, int index)
-{
-    auto groupIterator = m_groups.find(key);
-    if (groupIterator == m_groups.end())
-    {
-        auto groupItem = std::make_unique<QTreeWidgetItem>(QStringList{QStringLiteral("%1 (%2)").arg(title).arg(sensorCount)});
-        groupItem->setFirstColumnSpanned(true);
-
-        QFont groupFont = font();
-        groupFont.setWeight(QFont::DemiBold);
-        groupItem->setFont(0, groupFont);
-        groupItem->setForeground(0, QColor(theme::kAccentCyan));
-
-        QTreeWidgetItem* createdItem = groupItem.get();
-        insertTopLevelItem(index, createdItem);
-        groupItem.release();
-
-        GroupNodeState state;
-        state.item = createdItem;
-        groupIterator = m_groups.insert(key, state);
-        createdItem->setExpanded(true);
-        return *groupIterator;
-    }
-
-    GroupNodeState& state = *groupIterator;
-    const int currentIndex = indexOfTopLevelItem(state.item);
-    if (currentIndex != index)
-    {
-        std::unique_ptr<QTreeWidgetItem> movedItem(takeTopLevelItem(currentIndex));
-        insertTopLevelItem(index, movedItem.get());
-        movedItem.release();
-    }
-
-    return state;
-}
-
-CpuSensorTree::SensorNodeState& CpuSensorTree::ensureSensor(GroupNodeState& group, const SensorReading& sensor, int index)
-{
-    auto sensorIterator = group.sensors.find(sensor.sensorId);
-    if (sensorIterator == group.sensors.end())
-    {
-        auto sensorItem = std::make_unique<QTreeWidgetItem>(QStringList{sensor.name, QStringLiteral("--")});
-        sensorItem->setForeground(0, QColor(theme::kTextPrimary));
-        sensorItem->setForeground(1, QColor(theme::kOffline));
-        sensorItem->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
-
-        QTreeWidgetItem* createdItem = sensorItem.get();
-        group.item->insertChild(index, createdItem);
-        sensorItem.release();
-
-        SensorNodeState state;
-        state.item = createdItem;
-        state.valueText = QStringLiteral("--");
-        return *group.sensors.insert(sensor.sensorId, state);
-    }
-
-    SensorNodeState& state = *sensorIterator;
-    const int currentIndex = group.item->indexOfChild(state.item);
-    if (currentIndex != index)
-    {
-        std::unique_ptr<QTreeWidgetItem> movedItem(group.item->takeChild(currentIndex));
-        group.item->insertChild(index, movedItem.get());
-        movedItem.release();
-    }
-
-    return state;
-}
-
-void CpuSensorTree::updateSensor(SensorNodeState& state, const SensorReading& sensor)
-{
-    if (state.item->text(0) != sensor.name)
-        state.item->setText(0, sensor.name);
-
-    const QString currentValueText = sensorValueText(sensor);
-    if (state.valueText != currentValueText)
-    {
-        state.item->setText(1, currentValueText);
-        state.valueText = currentValueText;
-    }
-
-    const bool available = sensor.current.isAvailable();
-    if (state.available != available)
-    {
-        state.item->setForeground(1, available ? QColor(theme::kTextSecondary) : QColor(theme::kOffline));
-        state.available = available;
-    }
-}
-
-void CpuSensorTree::removeStaleSensors(GroupNodeState& group, const QSet<QString>& usedSensorIds)
-{
-    const auto sensorIds = group.sensors.keys();
-    for (const QString& sensorId : sensorIds)
-    {
-        if (usedSensorIds.contains(sensorId))
-            continue;
-
-        const SensorNodeState removedState = group.sensors.take(sensorId);
-        const int childIndex = group.item->indexOfChild(removedState.item);
-        if (childIndex >= 0)
-        {
-            std::unique_ptr<QTreeWidgetItem> removedItem(group.item->takeChild(childIndex));
-        }
-    }
-}
-
-void CpuSensorTree::removeStaleGroups(const QSet<QString>& usedGroupKeys)
-{
-    const auto groupKeys = m_groups.keys();
-    for (const QString& key : groupKeys)
-    {
-        if (usedGroupKeys.contains(key))
-            continue;
-
-        const GroupNodeState removedState = m_groups.take(key);
-        const int groupIndex = indexOfTopLevelItem(removedState.item);
-        if (groupIndex >= 0)
-        {
-            std::unique_ptr<QTreeWidgetItem> removedItem(takeTopLevelItem(groupIndex));
-        }
-    }
-}
-
-void CpuSensorTree::scrollContentsBy(int dx, int dy)
-{
-    Q_UNUSED(dx)
-    QTreeWidget::scrollContentsBy(0, dy);
+        scrollBar->setValue(qMin(scrollPosition, scrollBar->maximum()));
+    });
 }
 
 } // namespace monitor

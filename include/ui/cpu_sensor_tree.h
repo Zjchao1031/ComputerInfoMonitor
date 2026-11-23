@@ -2,45 +2,31 @@
 
 #include "model/monitor_snapshot.h"
 
-#include <QHash>
-#include <QSet>
-#include <QTreeWidget>
+#include <QListView>
+
+class QEvent;
 
 namespace monitor
 {
 
-class CpuSensorTree final : public QTreeWidget
+class CpuSensorModel;
+
+class CpuSensorTree final : public QListView
 {
 public:
     explicit CpuSensorTree(QWidget* parent = nullptr);
+    ~CpuSensorTree() override = default;
 
     void setGroups(const QVector<SensorGroup>& groups);
 
 protected:
-    void scrollContentsBy(int dx, int dy) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-    struct SensorNodeState
-    {
-        QTreeWidgetItem* item{nullptr};
-        QString valueText;
-        bool available{false};
-    };
-
-    struct GroupNodeState
-    {
-        QTreeWidgetItem* item{nullptr};
-        QHash<QString, SensorNodeState> sensors;
-    };
-
-    [[nodiscard]] GroupNodeState& ensureGroup(const QString& key, const QString& title, int sensorCount, int index);
-    [[nodiscard]] SensorNodeState& ensureSensor(GroupNodeState& group, const SensorReading& sensor, int index);
-    void updateSensor(SensorNodeState& state, const SensorReading& sensor);
-    void removeStaleSensors(GroupNodeState& group, const QSet<QString>& usedSensorIds);
-    void removeStaleGroups(const QSet<QString>& usedGroupKeys);
-
-    // 状态中的节点指针均为非拥有观察者，生命周期由 QTreeWidget 管理。
-    QHash<QString, GroupNodeState> m_groups;
+    CpuSensorModel* m_model{nullptr};
+    qreal m_lastMouseY{0.0};
+    qreal m_pendingDragPixels{0.0};
+    bool m_leftButtonPressed{false};
 };
 
 } // namespace monitor
