@@ -6,19 +6,22 @@
 #include <QColor>
 #include <QEvent>
 #include <QFont>
-#include <QFontMetrics>
 #include <QFrame>
+#include <QHash>
 #include <QModelIndex>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPointF>
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QSet>
 #include <QSize>
+#include <QStaticText>
 #include <QStringLiteral>
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
 #include <QTimer>
+#include <QTransform>
 #include <QVariant>
 
 #include <algorithm>
@@ -304,26 +307,43 @@ public:
         if (!isGroup)
             nameRect.adjust(kSensorIndent, 0, -valueWidth, 0);
 
-        const QFontMetricsF fontMetrics(rowFont);
         const QString name = index.data(CpuSensorModel::NameRole).toString();
-        const QString elidedName = fontMetrics.elidedText(name, Qt::ElideRight, nameRect.width());
+        auto cachedText = m_staticTexts.find(index.row());
+        if (cachedText == m_staticTexts.end() || cachedText->sourceText != name || cachedText->font != rowFont)
+        {
+            QStaticText staticText(name);
+            staticText.setTextFormat(Qt::PlainText);
+            staticText.setPerformanceHint(QStaticText::ModerateCaching);
+            staticText.prepare(QTransform(), rowFont);
+            cachedText = m_staticTexts.insert(index.row(), CachedStaticText{std::move(staticText), name, rowFont});
+        }
 
         painter->save();
         painter->setFont(rowFont);
         painter->setPen(nameColor);
-        painter->drawText(nameRect, Qt::AlignLeft | Qt::AlignVCenter, elidedName);
+        const QPointF textPosition(nameRect.left(), nameRect.top() + (nameRect.height() - cachedText->text.size().height()) / 2.0);
+        painter->drawStaticText(textPosition, cachedText->text);
 
         if (!isGroup)
         {
             const QString valueText = index.data(CpuSensorModel::ValueRole).toString();
-            const QString elidedValue = fontMetrics.elidedText(valueText, Qt::ElideLeft, valueWidth);
             const QRectF valueRect(contentRect.right() - valueWidth + 1.0, contentRect.top(), valueWidth, contentRect.height());
             painter->setPen(QColor(available ? theme::kTextSecondary : theme::kOffline));
-            painter->drawText(valueRect, Qt::AlignRight | Qt::AlignVCenter, elidedValue);
+            painter->drawText(valueRect, Qt::AlignRight | Qt::AlignVCenter, valueText);
         }
 
         painter->restore();
     }
+
+private:
+    struct CachedStaticText
+    {
+        QStaticText text;
+        QString sourceText;
+        QFont font;
+    };
+
+    mutable QHash<int, CachedStaticText> m_staticTexts;
 };
 
 } // namespace
@@ -346,7 +366,7 @@ CpuSensorTree::CpuSensorTree(QWidget* parent)
     setSpacing(0);
     setUniformItemSizes(true);
     setWordWrap(false);
-    setTextElideMode(Qt::ElideRight);
+    setTextElideMode(Qt::ElideNone);
     setAlternatingRowColors(false);
     setFocusPolicy(Qt::NoFocus);
     setSelectionMode(QAbstractItemView::NoSelection);

@@ -11,8 +11,6 @@
 #include <QStringLiteral>
 #include <QVBoxLayout>
 
-#include <cmath>
-
 namespace monitor
 {
 
@@ -43,12 +41,6 @@ void MemoryDetailPage::setSnapshot(const MemorySnapshot& snapshot)
 {
     m_snapshot = snapshot;
     m_memoryValueLabel->setText(formatMemoryUsage(snapshot));
-
-    if (!m_totalMemoryCapacity.has_value() && snapshot.total.value.has_value() && std::isfinite(*snapshot.total.value) && *snapshot.total.value > 0.0)
-    {
-        m_totalMemoryCapacity = *snapshot.total.value;
-        m_memoryChart->setFixedRange(0.0, *m_totalMemoryCapacity);
-    }
 }
 
 void MemoryDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)

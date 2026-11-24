@@ -36,9 +36,6 @@ CpuDetailPage::CpuDetailPage(QWidget* parent)
     m_powerChart = new HistoryChart(QStringLiteral("CPU Package 功耗"), QColor(theme::kAccentYellow), 1, this);
     m_clockChart = new HistoryChart(QStringLiteral("P-Core 最高频率"), QColor(theme::kAccentCyan), 1, this);
     m_temperatureChart = new HistoryChart(QStringLiteral("Core Max 温度"), QColor(theme::kOffline), 1, this);
-    m_powerChart->setFixedRange(0.0, 300.0);
-    m_clockChart->setFixedRange(2000.0, 6000.0);
-    m_temperatureChart->setFixedRange(30.0, 110.0);
     chartLayout->addWidget(m_powerChart);
     chartLayout->addWidget(m_clockChart);
     chartLayout->addWidget(m_temperatureChart);

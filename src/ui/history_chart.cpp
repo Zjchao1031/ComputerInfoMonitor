@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 
 namespace monitor
 {
@@ -103,16 +104,6 @@ void HistoryChart::appendData(const QVector<HistorySeries>& histories, const cha
     const HistorySeries* history = findHistorySeries(histories, identifier);
     if (history != nullptr)
         appendData(*history, current);
-}
-
-void HistoryChart::setFixedRange(double minimum, double maximum)
-{
-    if (!std::isfinite(minimum) || !std::isfinite(maximum) || minimum >= maximum)
-        return;
-
-    m_fixedRange = AxisRange{minimum, maximum};
-    if (isVisible())
-        update();
 }
 
 void HistoryChart::trimPoints()
@@ -221,16 +212,9 @@ void HistoryChart::paintEvent(QPaintEvent* event)
         }
     }
 
-    bool hasAxisRange = false;
     double minimumValue = 0.0;
     double maximumValue = 0.0;
-    if (m_fixedRange.has_value())
-    {
-        minimumValue = m_fixedRange->minimum;
-        maximumValue = m_fixedRange->maximum;
-        hasAxisRange = true;
-    }
-    else if (hasVisibleValue)
+    if (hasVisibleValue)
     {
         minimumValue = dataMinimumValue;
         maximumValue = dataMaximumValue;
@@ -246,8 +230,6 @@ void HistoryChart::paintEvent(QPaintEvent* event)
             minimumValue -= range * 0.08;
             maximumValue += range * 0.08;
         }
-
-        hasAxisRange = true;
     }
 
     QFont axisFont = font();
@@ -261,7 +243,7 @@ void HistoryChart::paintEvent(QPaintEvent* event)
         painter.drawLine(QPointF(plotRect.left(), y), QPointF(plotRect.right(), y));
     }
 
-    if (hasAxisRange)
+    if (hasVisibleValue)
     {
         painter.setPen(QColor(theme::kTextSecondary));
         const double middleValue = (minimumValue + maximumValue) / 2.0;
@@ -270,7 +252,7 @@ void HistoryChart::paintEvent(QPaintEvent* event)
         painter.drawText(QRectF(0.0, plotRect.bottom() - 8.0, 40.0, 16.0), Qt::AlignRight | Qt::AlignVCenter, formatValue(minimumValue, m_decimalPlaces));
     }
 
-    if (!firstTime.isValid() || !lastTime.isValid() || !hasAxisRange)
+    if (!firstTime.isValid() || !lastTime.isValid() || !hasVisibleValue)
         return;
 
     const double range = maximumValue - minimumValue;

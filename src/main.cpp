@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QFont>
 #include <QStringLiteral>
 
 #ifdef Q_OS_UNIX
@@ -86,6 +87,10 @@ private:
 int main(int argc, char* argv[])
 {
     QApplication application(argc, argv);
+    QFont font(QStringLiteral("WenQuanYi Zen Hei"));
+    font.setStyleStrategy(QFont::PreferAntialias);
+    QApplication::setFont(font);
+
     QCoreApplication::setOrganizationName(QStringLiteral("ComputerInfoMonitor"));
     QCoreApplication::setApplicationName(QStringLiteral("ComputerInfoMonitor"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));

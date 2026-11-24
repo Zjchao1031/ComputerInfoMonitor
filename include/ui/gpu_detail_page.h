@@ -4,8 +4,6 @@
 
 #include <QWidget>
 
-#include <optional>
-
 namespace monitor
 {
 
@@ -38,7 +36,6 @@ private:
     HistoryChart* m_temperatureChart{nullptr};
     HistoryChart* m_memoryChart{nullptr};
     GpuSnapshot m_snapshot;
-    std::optional<double> m_totalMemoryCapacity;
 };
 
 } // namespace monitor

@@ -12,6 +12,9 @@
 #include <QEvent>
 #include <QGuiApplication>
 #include <QPalette>
+#include <QPaintEvent>
+#include <QPainter>
+#include <QPixmap>
 #include <QStackedWidget>
 #include <QStringLiteral>
 #include <QTimer>
@@ -25,6 +28,31 @@ namespace monitor
 
 namespace
 {
+
+class BackgroundWidget final : public QWidget
+{
+public:
+    explicit BackgroundWidget(QWidget* parent = nullptr)
+        : QWidget(parent)
+        , m_backgroundPixmap(QStringLiteral(":/images/interface-background.png"))
+    {
+        setObjectName(QStringLiteral("centralWidget"));
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setAutoFillBackground(false);
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event)
+
+        QPainter painter(this);
+        painter.drawPixmap(rect(), m_backgroundPixmap);
+    }
+
+private:
+    QPixmap m_backgroundPixmap;
+};
 
 // 背景两侧和底部均有高亮电路图形，内容需要保持在中央安全区内。
 constexpr int kSafeAreaLeft = 180;
@@ -80,9 +108,7 @@ MainWindow::MainWindow(QWidget* parent)
     setWindowTitle(QStringLiteral("电脑信息监控终端"));
     setFixedSize(1024, 600);
 
-    auto* centralWidget = new QWidget(this);
-    centralWidget->setObjectName(QStringLiteral("centralWidget"));
-    centralWidget->setAttribute(Qt::WA_StyledBackground, true);
+    auto* centralWidget = new BackgroundWidget(this);
 
     auto* rootLayout = new QVBoxLayout(centralWidget);
     rootLayout->setContentsMargins(kSafeAreaLeft, kSafeAreaTop, kSafeAreaRight, kSafeAreaBottom);

@@ -10,8 +10,6 @@
 #include <QGridLayout>
 #include <QVBoxLayout>
 
-#include <cmath>
-
 namespace monitor
 {
 
@@ -46,8 +44,6 @@ GpuDetailPage::GpuDetailPage(QWidget* parent)
     m_clockChart = new HistoryChart(QStringLiteral("GPU Core 频率"), QColor(theme::kAccentCyan), 1, this);
     m_temperatureChart = new HistoryChart(QStringLiteral("GPU Core 温度"), QColor(theme::kOffline), 1, this);
     m_memoryChart = new HistoryChart(QStringLiteral("显存占用"), QColor(theme::kAccentYellow), 0, this);
-    m_powerChart->setFixedRange(0.0, 800.0);
-    m_clockChart->setFixedRange(2000.0, 4000.0);
     rootLayout->addWidget(m_powerChart, 1);
     rootLayout->addWidget(m_clockChart, 1);
     rootLayout->addWidget(m_temperatureChart, 1);
@@ -62,12 +58,6 @@ void GpuDetailPage::setSnapshot(const GpuSnapshot& snapshot)
     m_clockField->setValue(snapshot.coreClock);
     m_temperatureField->setValue(snapshot.coreTemperature);
     m_memoryField->setValue(snapshot.memoryUsed, 0);
-
-    if (!m_totalMemoryCapacity.has_value() && snapshot.memoryTotal.value.has_value() && std::isfinite(*snapshot.memoryTotal.value) && *snapshot.memoryTotal.value > 0.0)
-    {
-        m_totalMemoryCapacity = *snapshot.memoryTotal.value;
-        m_memoryChart->setFixedRange(0.0, *m_totalMemoryCapacity);
-    }
 }
 
 void GpuDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)

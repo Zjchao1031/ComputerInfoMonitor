@@ -5,8 +5,6 @@
 #include <QColor>
 #include <QWidget>
 
-#include <optional>
-
 class QPaintEvent;
 class QShowEvent;
 
@@ -20,19 +18,12 @@ public:
 
     void appendData(const HistorySeries& history, const MetricValue& current);
     void appendData(const QVector<HistorySeries>& histories, const char* identifier, const MetricValue& current);
-    void setFixedRange(double minimum, double maximum);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
 
 private:
-    struct AxisRange
-    {
-        double minimum{0.0};
-        double maximum{1.0};
-    };
-
     void trimPoints();
 
     QString m_title;
@@ -44,7 +35,6 @@ private:
     qint64 m_timestampOffsetMs{0};
     QVector<HistoryPoint> m_points;
     MetricValue m_current;
-    std::optional<AxisRange> m_fixedRange;
 };
 
 } // namespace monitor

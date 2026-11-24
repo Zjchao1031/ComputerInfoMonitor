@@ -10,13 +10,6 @@ namespace monitor::theme
 QString styleSheet()
 {
     QString result = QStringLiteral(R"(
-QWidget#centralWidget {
-    background-color: @background;
-    background-image: url(:/images/interface-background.png);
-    background-position: center;
-    background-repeat: no-repeat;
-    color: @textPrimary;
-}
 QWidget {
     color: @textPrimary;
 }
@@ -184,7 +177,6 @@ QListView#sensorTree QScrollBar::sub-line:vertical {
 }
 )");
 
-    result.replace(QLatin1String("@background"), QLatin1String(kBackground));
     result.replace(QLatin1String("@textPrimary"), QLatin1String(kTextPrimary));
     result.replace(QLatin1String("@textSecondary"), QLatin1String(kTextSecondary));
     result.replace(QLatin1String("@accentYellow"), QLatin1String(kAccentYellow));

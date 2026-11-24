@@ -4,8 +4,6 @@
 
 #include <QWidget>
 
-#include <optional>
-
 class QLabel;
 
 namespace monitor
@@ -33,7 +31,6 @@ private:
     QLabel* m_memoryValueLabel{nullptr};
     HistoryChart* m_memoryChart{nullptr};
     MemorySnapshot m_snapshot;
-    std::optional<double> m_totalMemoryCapacity;
 };
 
 } // namespace monitor
