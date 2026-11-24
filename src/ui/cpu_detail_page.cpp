@@ -41,6 +41,7 @@ CpuDetailPage::CpuDetailPage(QWidget* parent)
     chartLayout->addWidget(m_temperatureChart);
 
     m_sensorTree = new CpuSensorTree(this);
+    connect(m_sensorTree, &CpuSensorTree::scrollingChanged, this, &CpuDetailPage::handleSensorScrollingChanged);
 
     bodyLayout->addLayout(chartLayout, 7);
     bodyLayout->addWidget(m_sensorTree, 3);
@@ -51,7 +52,8 @@ void CpuDetailPage::setSnapshot(const CpuSnapshot& snapshot)
 {
     m_snapshot = snapshot;
     m_header->setTitle(snapshot.name);
-    m_sensorTree->setGroups(snapshot.sensorGroups);
+    if (!m_sensorUpdatesPaused)
+        m_sensorTree->setGroups(snapshot.sensorGroups);
 }
 
 void CpuDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)
@@ -59,6 +61,12 @@ void CpuDetailPage::appendHistorySeries(const QVector<HistorySeries>& histories)
     m_powerChart->appendData(histories, history_id::kCpuPower, m_snapshot.packagePower);
     m_clockChart->appendData(histories, history_id::kCpuClock, m_snapshot.maximumPCoreClock);
     m_temperatureChart->appendData(histories, history_id::kCpuTemperature, m_snapshot.coreMaximumTemperature);
+}
+
+void CpuDetailPage::handleSensorScrollingChanged(bool scrolling)
+{
+    // 松手后等待下一次快照，使右侧列表与正常采样节拍重新同步。
+    m_sensorUpdatesPaused = scrolling;
 }
 
 } // namespace monitor

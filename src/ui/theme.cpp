@@ -153,28 +153,6 @@ QLabel#memoryDetailValue {
     font-size: 26px;
     font-weight: 700;
 }
-QListView#sensorTree {
-    background-color: transparent;
-    border: none;
-    color: @textPrimary;
-    font-size: 12px;
-    outline: none;
-}
-QListView#sensorTree QScrollBar:vertical {
-    background-color: transparent;
-    border: none;
-    width: 6px;
-    margin: 0;
-}
-QListView#sensorTree QScrollBar::handle:vertical {
-    background-color: rgba(88, 217, 255, 0.45);
-    border-radius: 3px;
-    min-height: 24px;
-}
-QListView#sensorTree QScrollBar::add-line:vertical,
-QListView#sensorTree QScrollBar::sub-line:vertical {
-    height: 0;
-}
 )");
 
     result.replace(QLatin1String("@textPrimary"), QLatin1String(kTextPrimary));

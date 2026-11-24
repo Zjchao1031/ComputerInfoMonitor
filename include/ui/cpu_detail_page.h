@@ -26,12 +26,15 @@ signals:
     void backRequested();
 
 private:
+    void handleSensorScrollingChanged(bool scrolling);
+
     DetailHeader* m_header{nullptr};
     HistoryChart* m_powerChart{nullptr};
     HistoryChart* m_clockChart{nullptr};
     HistoryChart* m_temperatureChart{nullptr};
     CpuSensorTree* m_sensorTree{nullptr};
     CpuSnapshot m_snapshot;
+    bool m_sensorUpdatesPaused{false};
 };
 
 } // namespace monitor

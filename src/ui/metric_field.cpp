@@ -51,16 +51,15 @@ MetricField::MetricField(const QString& label, QWidget* parent)
 
 void MetricField::setValue(const MetricValue& metric, int decimalPlaces)
 {
-    if (!metric.value.has_value() || !std::isfinite(*metric.value))
-    {
-        m_valueLabel->setText(QStringLiteral("--"));
-    }
-    else
-    {
-        m_valueLabel->setText(QString::number(*metric.value, 'f', decimalPlaces));
-    }
+    QString valueText = QStringLiteral("--");
+    if (metric.value.has_value() && std::isfinite(*metric.value))
+        valueText = QString::number(*metric.value, 'f', decimalPlaces);
 
-    m_unitLabel->setText(metric.unit);
+    if (m_valueLabel->text() != valueText)
+        m_valueLabel->setText(valueText);
+
+    if (m_unitLabel->text() != metric.unit)
+        m_unitLabel->setText(metric.unit);
 }
 
 } // namespace monitor

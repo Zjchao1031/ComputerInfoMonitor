@@ -336,8 +336,6 @@ void MainWindow::refreshPage(PageId page)
     case PageId::Count:
         break;
     }
-
-    m_pageStack->currentWidget()->update();
 }
 
 MainWindow::PageId MainWindow::currentPageId() const noexcept

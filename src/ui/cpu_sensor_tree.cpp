@@ -2,27 +2,28 @@
 
 #include "ui/theme.h"
 
+#include <QAbstractItemModel>
 #include <QAbstractListModel>
 #include <QColor>
 #include <QEvent>
 #include <QFont>
 #include <QFrame>
 #include <QHash>
+#include <QHideEvent>
 #include <QModelIndex>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPointF>
+#include <QPalette>
+#include <QPixmap>
 #include <QRegularExpression>
 #include <QScrollBar>
-#include <QSet>
 #include <QSize>
-#include <QStaticText>
 #include <QStringLiteral>
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
 #include <QTimer>
-#include <QTransform>
 #include <QVariant>
+#include <QWidget>
 
 #include <algorithm>
 #include <cmath>
@@ -267,15 +268,19 @@ private:
     QVector<Row> m_rows;
 };
 
-namespace
-{
-
 class SensorRowDelegate final : public QStyledItemDelegate
 {
 public:
-    explicit SensorRowDelegate(QObject* parent = nullptr)
+    explicit SensorRowDelegate(const QFont& font, QObject* parent = nullptr)
         : QStyledItemDelegate(parent)
+        , m_rowFont(font)
+        , m_groupFont(font)
+        , m_nameColor(QColor(theme::kTextPrimary))
+        , m_valueColor(QColor(theme::kTextSecondary))
+        , m_offlineColor(QColor(theme::kOffline))
+        , m_groupColor(QColor(theme::kAccentCyan))
     {
+        m_groupFont.setWeight(QFont::DemiBold);
     }
 
     [[nodiscard]] QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override
@@ -290,71 +295,128 @@ public:
         if (painter == nullptr || !index.isValid())
             return;
 
-        const bool isGroup = index.data(CpuSensorModel::IsGroupRole).toBool();
-        const bool available = index.data(CpuSensorModel::AvailableRole).toBool();
+        if (option.rect.width() <= 0 || option.rect.height() <= 0)
+            return;
 
-        QFont rowFont = option.font;
-        QColor nameColor = QColor(theme::kTextPrimary);
-        if (isGroup)
+        const qreal devicePixelRatio = option.widget != nullptr ? option.widget->devicePixelRatioF() : 1.0;
+        auto cachedRow = m_rows.find(index.row());
+        if (cachedRow == m_rows.end() || cachedRow->logicalWidth != option.rect.width() || cachedRow->devicePixelRatio != devicePixelRatio)
         {
-            rowFont.setWeight(QFont::DemiBold);
-            nameColor = QColor(theme::kAccentCyan);
+            CachedRow newRow = createRowPixmap(index, option.rect.width(), devicePixelRatio);
+            if (cachedRow == m_rows.end())
+                cachedRow = m_rows.insert(index.row(), std::move(newRow));
+            else
+                *cachedRow = std::move(newRow);
         }
 
-        const QRectF contentRect = option.rect.adjusted(kHorizontalPadding, 0, -kHorizontalPadding, 0);
+        painter->save();
+        painter->setClipRect(option.rect);
+        painter->drawPixmap(option.rect.topLeft(), cachedRow->pixmap);
+        painter->restore();
+    }
+
+    void invalidateRows(int firstRow, int lastRow)
+    {
+        if (firstRow > lastRow)
+            std::swap(firstRow, lastRow);
+
+        for (int row = firstRow; row <= lastRow; ++row)
+            m_rows.remove(row);
+    }
+
+    void clearCache()
+    {
+        m_rows.clear();
+    }
+
+private:
+    struct CachedRow
+    {
+        QPixmap pixmap;
+        int logicalWidth{0};
+        qreal devicePixelRatio{1.0};
+    };
+
+    [[nodiscard]] CachedRow createRowPixmap(const QModelIndex& index, int logicalWidth, qreal devicePixelRatio) const
+    {
+        const qreal validDevicePixelRatio = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
+        const int pixmapWidth = std::max(1, static_cast<int>(std::ceil(static_cast<qreal>(logicalWidth) * validDevicePixelRatio)));
+        const int pixmapHeight = std::max(1, static_cast<int>(std::ceil(static_cast<qreal>(kRowHeight) * validDevicePixelRatio)));
+
+        QPixmap pixmap(pixmapWidth, pixmapHeight);
+        pixmap.setDevicePixelRatio(validDevicePixelRatio);
+        pixmap.fill(Qt::transparent);
+
+        const bool isGroup = index.data(CpuSensorModel::IsGroupRole).toBool();
+        const bool available = index.data(CpuSensorModel::AvailableRole).toBool();
+        const QString name = index.data(CpuSensorModel::NameRole).toString();
+        const QFont& rowFont = isGroup ? m_groupFont : m_rowFont;
+        const QColor& nameColor = isGroup ? m_groupColor : m_nameColor;
+
+        const QRectF rowRect(0.0, 0.0, static_cast<qreal>(logicalWidth), static_cast<qreal>(kRowHeight));
+        const QRectF contentRect = rowRect.adjusted(kHorizontalPadding, 0, -kHorizontalPadding, 0);
         const int valueWidth = isGroup ? 0 : kValueColumnWidth;
         QRectF nameRect = contentRect;
         if (!isGroup)
             nameRect.adjust(kSensorIndent, 0, -valueWidth, 0);
 
-        const QString name = index.data(CpuSensorModel::NameRole).toString();
-        auto cachedText = m_staticTexts.find(index.row());
-        if (cachedText == m_staticTexts.end() || cachedText->sourceText != name || cachedText->font != rowFont)
-        {
-            QStaticText staticText(name);
-            staticText.setTextFormat(Qt::PlainText);
-            staticText.setPerformanceHint(QStaticText::ModerateCaching);
-            staticText.prepare(QTransform(), rowFont);
-            cachedText = m_staticTexts.insert(index.row(), CachedStaticText{std::move(staticText), name, rowFont});
-        }
-
-        painter->save();
-        painter->setFont(rowFont);
-        painter->setPen(nameColor);
-        const QPointF textPosition(nameRect.left(), nameRect.top() + (nameRect.height() - cachedText->text.size().height()) / 2.0);
-        painter->drawStaticText(textPosition, cachedText->text);
+        QPainter painter(&pixmap);
+        painter.setFont(rowFont);
+        painter.setPen(nameColor);
+        painter.drawText(nameRect, Qt::AlignLeft | Qt::AlignVCenter, name);
 
         if (!isGroup)
         {
             const QString valueText = index.data(CpuSensorModel::ValueRole).toString();
             const QRectF valueRect(contentRect.right() - valueWidth + 1.0, contentRect.top(), valueWidth, contentRect.height());
-            painter->setPen(QColor(available ? theme::kTextSecondary : theme::kOffline));
-            painter->drawText(valueRect, Qt::AlignRight | Qt::AlignVCenter, valueText);
+            painter.setPen(available ? m_valueColor : m_offlineColor);
+            painter.drawText(valueRect, Qt::AlignRight | Qt::AlignVCenter, valueText);
         }
 
-        painter->restore();
+        return CachedRow{std::move(pixmap), logicalWidth, validDevicePixelRatio};
     }
 
-private:
-    struct CachedStaticText
-    {
-        QStaticText text;
-        QString sourceText;
-        QFont font;
-    };
-
-    mutable QHash<int, CachedStaticText> m_staticTexts;
+    QFont m_rowFont;
+    QFont m_groupFont;
+    QColor m_nameColor;
+    QColor m_valueColor;
+    QColor m_offlineColor;
+    QColor m_groupColor;
+    mutable QHash<int, CachedRow> m_rows;
 };
-
-} // namespace
 
 CpuSensorTree::CpuSensorTree(QWidget* parent)
     : QListView(parent)
-    , m_model(new CpuSensorModel(this))
 {
     setObjectName(QStringLiteral("sensorTree"));
+
+    QFont rowFont = font();
+    rowFont.setPixelSize(12);
+    setFont(rowFont);
+
+    QPalette viewPalette = palette();
+    viewPalette.setColor(QPalette::Base, Qt::transparent);
+    viewPalette.setColor(QPalette::Window, Qt::transparent);
+    setPalette(viewPalette);
+    viewport()->setPalette(viewPalette);
+    viewport()->setAttribute(Qt::WA_TranslucentBackground, true);
+    viewport()->setAutoFillBackground(false);
+
+    m_model = new CpuSensorModel(this);
     setModel(m_model);
-    setItemDelegate(new SensorRowDelegate(this));
+    m_delegate = new SensorRowDelegate(font(), this);
+    setItemDelegate(m_delegate);
+
+    connect(m_model, &QAbstractItemModel::dataChanged, this, [this](const QModelIndex& topLeft, const QModelIndex& bottomRight)
+    {
+        if (m_delegate != nullptr && topLeft.isValid() && bottomRight.isValid())
+            m_delegate->invalidateRows(topLeft.row(), bottomRight.row());
+    });
+    connect(m_model, &QAbstractItemModel::modelReset, this, [this]()
+    {
+        if (m_delegate != nullptr)
+            m_delegate->clearCache();
+    });
 
     setViewMode(QListView::ListMode);
     setFlow(QListView::TopToBottom);
@@ -377,9 +439,26 @@ CpuSensorTree::CpuSensorTree(QWidget* parent)
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollMode(QAbstractItemView::ScrollPerItem);
-    viewport()->setAutoFillBackground(false);
 
     viewport()->installEventFilter(this);
+}
+
+void CpuSensorTree::beginScrolling()
+{
+    if (m_scrolling)
+        return;
+
+    m_scrolling = true;
+    emit scrollingChanged(true);
+}
+
+void CpuSensorTree::endScrolling()
+{
+    if (!m_scrolling)
+        return;
+
+    m_scrolling = false;
+    emit scrollingChanged(false);
 }
 
 bool CpuSensorTree::eventFilter(QObject* watched, QEvent* event)
@@ -396,6 +475,7 @@ bool CpuSensorTree::eventFilter(QObject* watched, QEvent* event)
         m_leftButtonPressed = true;
         m_lastMouseY = mouseEvent->position().y();
         m_pendingDragPixels = 0.0;
+        beginScrolling();
         return true;
     }
 
@@ -426,11 +506,40 @@ bool CpuSensorTree::eventFilter(QObject* watched, QEvent* event)
             m_leftButtonPressed = false;
             m_lastMouseY = 0.0;
             m_pendingDragPixels = 0.0;
+            endScrolling();
             return true;
         }
     }
 
+    if (event->type() == QEvent::UngrabMouse)
+    {
+        m_leftButtonPressed = false;
+        m_lastMouseY = 0.0;
+        m_pendingDragPixels = 0.0;
+        endScrolling();
+    }
+
     return QListView::eventFilter(watched, event);
+}
+
+void CpuSensorTree::changeEvent(QEvent* event)
+{
+    QListView::changeEvent(event);
+
+    if (event == nullptr || m_delegate == nullptr)
+        return;
+
+    if (event->type() == QEvent::FontChange || event->type() == QEvent::ApplicationFontChange || event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange)
+        m_delegate->clearCache();
+}
+
+void CpuSensorTree::hideEvent(QHideEvent* event)
+{
+    m_leftButtonPressed = false;
+    m_lastMouseY = 0.0;
+    m_pendingDragPixels = 0.0;
+    endScrolling();
+    QListView::hideEvent(event);
 }
 
 void CpuSensorTree::setGroups(const QVector<SensorGroup>& groups)
